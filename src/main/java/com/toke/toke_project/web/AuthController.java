@@ -31,8 +31,8 @@ public class AuthController {
         }
         try {
             authService.register(form);
-            ra.addFlashAttribute("msg", "회원가입 완료! 로그인 해주세요.");
-            return "redirect:/login";
+            ra.addFlashAttribute("msg", "회원가입이 성공적으로 완료되었습니다.");
+            return "auth/register_success";
         } catch (IllegalArgumentException | IllegalStateException e) {
             binding.reject("", e.getMessage()); // 서비스에서 던진 메시지 표출
             return "auth/register";

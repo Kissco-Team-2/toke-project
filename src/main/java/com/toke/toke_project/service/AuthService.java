@@ -26,15 +26,16 @@ public class AuthService {
         if (usersRepo.existsByEmail(f.getEmail().trim())) {
             throw new IllegalStateException("이미 가입된 이메일입니다.");
         }
-        if (usersRepo.existsByNickname(f.getNickname())) {
+        if (usersRepo.existsByNickname(f.getNickname().trim())) {
             throw new IllegalStateException("이미 사용 중인 닉네임입니다.");
         }
+        
 
         // 3) 저장 (비밀번호는 반드시 해싱)
         Users u = new Users();
         u.setUsername(f.getUsername());
         u.setEmail(f.getEmail().trim());
-        u.setNickname(f.getNickname());
+        u.setNickname(f.getNickname().trim());
         u.setPassword(passwordEncoder.encode(f.getPassword()));
         u.setRole("user");
 

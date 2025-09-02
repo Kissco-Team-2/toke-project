@@ -28,7 +28,7 @@ public class Users {
     @Column(nullable = false, length = 100, unique = true)
     private String email;
 
-    @Column(nullable = false, length = 6, unique = true)
+    @Column(nullable = false, length = 20, unique = true) //length 6=>20변경
     private String nickname;
 
     @Column(nullable = false, length = 50)

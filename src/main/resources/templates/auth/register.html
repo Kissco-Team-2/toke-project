@@ -82,12 +82,12 @@ body {
 						<div style="padding: 20px;">
 							<p class="mb-4 text-muted" style="font-size: 0.8rem;">회원 정보를
 								입력해 주세요</p>
-							<form class="mt-3">
+							<form class="mt-3" action="/register" method="post">
 								<div class="row mb-4 align-items-center">
 									<label for="name" class="col-sm-3 col-form-label req">이름</label>
 									<div class="col-sm-9">
-										<input type="text" id="name" name="name" class="form-control"
-											placeholder="이름 입력">
+										<input type="text" id="name" name="username"
+											class="form-control" placeholder="이름 입력">
 									</div>
 								</div>
 
@@ -98,10 +98,9 @@ body {
 
 									<!-- 아이디 + @ + 도메인 -->
 									<div class="col-sm-9 d-flex align-items-center gap-2">
-										<input type="text" class="form-control w-50"
+										<input type="text" id="emailId" class="form-control w-50"
 											placeholder="example" aria-label="email-id"> <span
 											class="text-muted">@</span>
-
 										<!-- select -->
 										<select id="emailDomain" class="form-select w-50"
 											aria-label="email-domain" style="font-size: 0.875rem;">
@@ -115,44 +114,50 @@ body {
 										<!-- 직접 입력칸 (처음엔 숨김) -->
 										<input type="text" id="customDomain"
 											class="form-control w-50 d-none" placeholder="직접 입력">
+										<input type="hidden" id="email" name="email">
 									</div>
-
-									<script>
-										const emailDomain = document
-												.getElementById("emailDomain");
-										const customDomain = document
-												.getElementById("customDomain");
-
-										emailDomain
-												.addEventListener(
-														"change",
-														function() {
-															if (this.value === "custom") {
-																emailDomain.classList
-																		.add("d-none"); // select 숨김
-																customDomain.classList
-																		.remove("d-none"); // input 표시
-																customDomain
-																		.focus();
-															}
-														});
-
-										// 사용자가 input 입력 끝내고 다시 select로 돌리고 싶으면
-										customDomain
-												.addEventListener(
-														"blur",
-														function() {
-															if (this.value === "") {
-																customDomain.classList
-																		.add("d-none"); // input 숨김
-																emailDomain.classList
-																		.remove("d-none"); // select 다시 표시
-																emailDomain.value = ""; // 기본값 초기화
-															}
-														});
-									</script>
-
 								</div>
+
+								<script>
+							const emailId = document.getElementById("emailId");
+  							const emailDomain = document.getElementById("emailDomain");
+ 							const customDomain = document.getElementById("customDomain");
+  							const email = document.getElementById("email"); // hidden input
+
+							  function updateEmail() {
+							    let domain = emailDomain.value;
+							    if (domain === "custom") {
+							      domain = customDomain.value;
+							    }
+							    if (emailId.value && domain) {
+							      email.value = emailId.value + "@" + domain;
+							    } else {
+							      email.value = "";
+							    }
+							  }
+							
+							  emailId.addEventListener("input", updateEmail);
+							  emailDomain.addEventListener("change", () => {
+							    if (emailDomain.value === "custom") {
+							      emailDomain.classList.add("d-none");
+							      customDomain.classList.remove("d-none");
+							      customDomain.focus();
+							    }
+							    updateEmail();
+							  });
+							  customDomain.addEventListener("input", updateEmail);
+							
+							  customDomain.addEventListener("blur", function () {
+							    if (this.value === "") {
+							      customDomain.classList.add("d-none");
+							      emailDomain.classList.remove("d-none");
+							      emailDomain.value = "";
+							    }
+							    updateEmail();
+							  });
+								</script>
+
+
 								<!-- 비밀번호 -->
 								<div class="row mb-4 align-items-center">
 									<label for="password" class="col-sm-3 col-form-label req">비밀번호</label>
