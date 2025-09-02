@@ -8,6 +8,8 @@ import com.toke.toke_project.domain.Users;
 
 public interface UsersRepository extends JpaRepository<Users, Long> { //이미 존재하는 이메일, 별명인지 확인
 	Optional<Users> findByEmail(String email);
+	Optional<Users> findByNameAndPhone(String name, String phone);
 	boolean existsByEmail(String email);
 	boolean existsByNickname(String nickname);
+	
 }
