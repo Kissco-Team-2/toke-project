@@ -68,6 +68,11 @@
     		<artifactId>ojdbc11</artifactId>
     		<version>23.2.0.0</version>
 		</dependency>
+		<dependency>
+    <groupId>com.oracle.database.jdbc</groupId>
+    <artifactId>ojdbc11</artifactId>
+    <version>21.11.0.0</version>
+</dependency>
 	</dependencies>
 
 	<build>
@@ -88,6 +93,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
+				 <fork>true</fork> 
 					<excludes>
 						<exclude>
 							<groupId>org.projectlombok</groupId>
