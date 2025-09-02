@@ -43,7 +43,10 @@ public class SecurityConfig {
                 .anyRequest().authenticated() // 그 외는 로그인 필요
             )
             .formLogin(login -> login
-                .loginPage("/login") // 로그인 페이지 (커스텀)
+                .loginPage("/login") // GET /login -> 로그인 페이지 (커스텀) 
+                .loginProcessingUrl("/login") // POST /login -> Spring Security가 처리
+            	.usernameParameter("email") //
+            	.passwordParameter("password")
                 .defaultSuccessUrl("/", false) // 로그인 성공 시 이동할 기본 페이지
                 .failureUrl("/login?error=true") // 로그인 실패 시
                 .permitAll()
