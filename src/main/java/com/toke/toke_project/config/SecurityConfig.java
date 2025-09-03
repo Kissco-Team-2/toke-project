@@ -48,7 +48,7 @@ public class SecurityConfig {
                 .loginProcessingUrl("/login") // POST /login -> Spring Security가 처리
             	.usernameParameter("email") //
             	.passwordParameter("password")
-                .defaultSuccessUrl("/", false) // 로그인 성공 시 이동할 기본 페이지
+                .defaultSuccessUrl("/", true) // 로그인 성공 시 이동할 기본 페이지
                 .failureUrl("/login?error=true") // 로그인 실패 시
                 .permitAll()
             )

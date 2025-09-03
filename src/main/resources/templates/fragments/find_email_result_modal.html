@@ -1,0 +1,36 @@
+<div th:fragment="findEmailResultModal">
+	<div class="modal fade" id="findEmailResultModal" tabindex="-1"
+		aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content p-4" style="border-radius: 16px;">
+				<div class="modal-header border-0 d-flex justify-content-center">
+					<button type="button"
+						class="btn-close position-absolute end-0 me-3"
+						data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body text-center">
+					<div th:if="${email}">
+						<img th:src="@{/img/check.svg}" alt="이메일 찾기 성공"
+							style="width: 100px; height: 100px; margin-bottom: 1.4rem;">
+						<p>
+							회원님의 이메일은<br> <strong th:text="${email}">test@example.com</strong>입니다.
+						</p>
+						<div class="col-10 d-grid mt-3 mx-auto ">
+							<a href="/login" class="btn btn-soft-green">로그인 하러 가기</a>
+						</div>
+					</div>
+
+
+					<div th:if="${error}">
+						<img th:src="@{/img/error.svg}" alt="이메일 찾기 실패"
+							style="width: 100px; height: 100px; margin-bottom: 1.4rem;">
+						<p th:text="${error}" style="margin-top: 0.4rem;">일치하는 회원 정보를 찾을 수 없습니다.</p>
+						<div class="col-10 d-grid mx-auto" style="margin-top: 1.2rem;">
+							<button type="button" class="btn btn-secondary"
+								data-bs-dismiss="modal">돌아가기</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="fragments/header :: site-head"></head>
+<body class="d-flex flex-column min-vh-100" style="margin: 0;">
+
+	<header th:replace="fragments/header :: site-header"></header>
+
+	<main class="flex-grow-1" style="margin: 0; padding: 0;">
+		<section
+			class="d-flex align-items-center justify-content-center text-center"
+			style="background-color: #caf7cf; height: 600px; margin: 0; padding: 0;">
+			<div>
+				<h1 class="fw-bold display-4">TOKE</h1>
+				<form class="d-flex justify-content-center mt-3"
+					style="max-width: 400px; margin: auto;">
+					<input class="col-9 form-control me-2" type="search"
+						placeholder="표현 검색">
+					<button class="col-3 btn btn-dark" type="submit">검색</button>
+				</form>
+			</div>
+		</section>
+	</main>
+
+	<footer th:replace="fragments/footer :: site-footer"
+		style="margin-top: 0; padding-top: 0; background: #000;"></footer>
+
+	<script
+		src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
