@@ -33,34 +33,44 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // 개발 단계에서는 CSRF 비활성화 (실서비스는 활성 권장)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                		"/find_account_modal",
-                		"/register_success", 
-                		"/register", 
-                		"/forgot/**", 
-                		"/css/**", 
-                		"/js/**",
-                		"/img/**").permitAll() // 누구나 접근 가능
-                .requestMatchers("/admin/**").hasRole("ADMIN") // 관리자 전용
-                .anyRequest().authenticated() // 그 외는 로그인 필요
+                        "/find_account_modal",
+                        "/register_success", 
+                        "/register", 
+                        "/forgot/**", 
+                        "/css/**", 
+                        "/js/**",
+                        "/img/**").permitAll() // 누구나 접근 가능
+
+                // ✅ 모두의 단어장 열람은 GET 요청만 공개
+                .requestMatchers(org.springframework.http.HttpMethod.GET, 
+                                 "/lists", "/lists/*", "/lists/search").permitAll()
+
+                // ✅ 단어장 생성/수정/삭제/아이템 추가는 로그인 필요
+                .requestMatchers("/lists/**").authenticated()
+
+                // 관리자 전용
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+
+                // 나머지는 로그인 필요
+                .anyRequest().authenticated()
             )
             .formLogin(login -> login
+
                 .loginPage("/login") // GET /login -> 로그인 페이지 (커스텀) 
                 .loginProcessingUrl("/login") // POST /login -> Spring Security가 처리
             	.usernameParameter("email") //
             	.passwordParameter("password")
-                .defaultSuccessUrl("/", true) // 로그인 성공 시 이동할 기본 페이지
+                .defaultSuccessUrl("/", false) // 로그인 성공 시 이동할 기본 페이지
                 .failureUrl("/login?error=true") // 로그인 실패 시
+
                 .permitAll()
             )
             .logout(logout -> logout
                 .logoutUrl("/logout")
-                .logoutSuccessUrl("/login?logout=true") // 로그아웃 후 이동
+                .logoutSuccessUrl("/login?logout=true")
                 .permitAll()
             );
 
         return http.build();
     }
-    
-
 }
-
