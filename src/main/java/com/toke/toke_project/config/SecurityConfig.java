@@ -14,64 +14,37 @@ import org.springframework.security.web.SecurityFilterChain;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    // 1) 비밀번호 암호화용 Bean
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+	// 1) 비밀번호 암호화용 Bean
+	@Bean
+	public PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder();
+	}
 
-    // 2) AuthenticationManager (로그인 처리에 필요)
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
-    }
+	// 2) AuthenticationManager (로그인 처리에 필요)
+	@Bean
+	public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+		return authConfig.getAuthenticationManager();
+	}
 
-    // 3) Spring Security 필터 체인 설정
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable()) // 개발 단계에서는 CSRF 비활성화 (실서비스는 활성 권장)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                		"/",
-                        "/find_account_modal",
-                        "/register_success", 
-                        "/register", 
-                        "/forgot/**", 
-                        "/css/**", 
-                        "/js/**",
-                        "/img/**").permitAll() // 누구나 접근 가능
+	// 3) Spring Security 필터 체인 설정
+	@Bean
+	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+		http.csrf(csrf -> csrf
+				// 비밀번호 찾기 흐름만 CSRF 제외
+				.ignoringRequestMatchers("/forgot/password/**"))
+				.authorizeHttpRequests(auth -> auth
+						.requestMatchers("/", "/login", "/find_account_modal", "/register_success", "/register",
+								"/forgot/**", "/css/**", "/js/**", "/img/**")
+						.permitAll()
+						.requestMatchers(org.springframework.http.HttpMethod.GET, "/lists", "/lists/*", "/lists/search")
+						.permitAll().requestMatchers("/lists/**").authenticated().requestMatchers("/admin/**")
+						.hasRole("ADMIN").anyRequest().authenticated())
+				.formLogin(login -> login.loginPage("/login").loginProcessingUrl("/login").usernameParameter("email")
+						.passwordParameter("password").defaultSuccessUrl("/", false).failureUrl("/login?error=true")
+						.permitAll())
+				.logout(logout -> logout.logoutUrl("/logout").logoutSuccessUrl("/login?logout=true").permitAll());
 
-                // ✅ 모두의 단어장 열람은 GET 요청만 공개
-                .requestMatchers(org.springframework.http.HttpMethod.GET, 
-                                 "/lists", "/lists/*", "/lists/search").permitAll()
+		return http.build();
+	}
 
-                // ✅ 단어장 생성/수정/삭제/아이템 추가는 로그인 필요
-                .requestMatchers("/lists/**").authenticated()
-
-                // 관리자 전용
-                .requestMatchers("/admin/**").hasRole("ADMIN")
-
-                // 나머지는 로그인 필요
-                .anyRequest().authenticated()
-            )
-            .formLogin(login -> login
-
-                .loginPage("/login") // GET /login -> 로그인 페이지 (커스텀) 
-                .loginProcessingUrl("/login") // POST /login -> Spring Security가 처리
-            	.usernameParameter("email") //
-            	.passwordParameter("password")
-                .defaultSuccessUrl("/", false) // 로그인 성공 시 이동할 기본 페이지
-                .failureUrl("/login?error=true") // 로그인 실패 시
-
-                .permitAll()
-            )
-            .logout(logout -> logout
-                .logoutUrl("/logout")
-                .logoutSuccessUrl("/login?logout=true")
-                .permitAll()
-            );
-
-        return http.build();
-    }
 }

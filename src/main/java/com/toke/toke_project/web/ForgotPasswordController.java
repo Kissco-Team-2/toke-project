@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.Duration;
+import java.util.Optional;
 
 @Controller
 @RequestMapping("/forgot/password")
@@ -23,30 +24,39 @@ public class ForgotPasswordController {
     private final MailService mailService;
     private final VerificationService verificationService;
 
-    /** 1) 이메일 입력 페이지 */
-    @GetMapping
-    public String page() {
-        return "auth/forgot_password";
-    }
+
 
     /** 1) 인증 코드 전송 */
+    
     @PostMapping("/send")
-    public String send(@RequestParam String email, RedirectAttributes ra) {
+    public String send(
+            @RequestParam(required=false) String username,
+            @RequestParam(required=false) String phoneNumber,
+            @RequestParam String email,
+            RedirectAttributes ra) {
+    	
+    	System.out.println("컨트롤러 진입: email=" + email + ", username=" + username + ", phoneNumber=" + phoneNumber);
         // 가입 여부 확인
-        Users user = usersRepo.findByEmail(email).orElse(null);
+    	//Users user = usersRepo.findByUsernameAndPhoneNumberAndEmail(username, phoneNumber, email).orElse(null);
+    	
+    	Users user = usersRepo.findByEmail(email).orElse(null);
+
+    	
         if (user == null) {
+        	 System.out.println("❌ user 없음: DB 조회 실패");
             ra.addFlashAttribute("err", "가입된 이메일이 없습니다.");
             return "redirect:/forgot/password";
         }
+        System.out.println("✅ user 찾음: " + user.getId());
 
         // 코드 생성/저장 후 메일 발송 (10분 유효)
         verificationService.createAndSend(
                 email,
                 "RESET_PASSWORD",
                 Duration.ofMinutes(10),
-                code -> mailService.sendCode(email, code)
+                code -> mailService.sendCodeHtml(email, code, 10)
         );
-
+        System.out.println("📧 인증 메일 발송 로직 실행됨");
         ra.addFlashAttribute("msg", "인증 코드를 이메일로 보냈습니다.");
         ra.addFlashAttribute("email", email); // 다음 페이지에서 사용
         return "redirect:/forgot/password/verify";
