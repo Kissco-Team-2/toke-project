@@ -26,5 +26,9 @@ public class RegisterForm {
 
     @NotBlank
     private String confirmPassword;
-
+    
+    
+    @NotBlank 
+    @Pattern(regexp = "^[0-9]{11}$", message = "전화번호는 숫자 11자리만 입력 가능합니다.")
+    private String phoneNumber; 
 }
