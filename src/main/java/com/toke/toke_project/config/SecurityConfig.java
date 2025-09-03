@@ -32,13 +32,23 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable()) // 개발 단계에서는 CSRF 비활성화 (실서비스는 활성 권장)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/register", "/forgot/**", "/css/**", "/js/**").permitAll() // 누구나 접근 가능
+                .requestMatchers(
+                		"/find_account_modal",
+                		"/register_success", 
+                		"/register", 
+                		"/forgot/**", 
+                		"/css/**", 
+                		"/js/**",
+                		"/img/**").permitAll() // 누구나 접근 가능
                 .requestMatchers("/admin/**").hasRole("ADMIN") // 관리자 전용
                 .anyRequest().authenticated() // 그 외는 로그인 필요
             )
             .formLogin(login -> login
-                .loginPage("/login") // 로그인 페이지 (커스텀)
-                .defaultSuccessUrl("/", true) // 로그인 성공 시 이동할 기본 페이지
+                .loginPage("/login") // GET /login -> 로그인 페이지 (커스텀) 
+                .loginProcessingUrl("/login") // POST /login -> Spring Security가 처리
+            	.usernameParameter("email") //
+            	.passwordParameter("password")
+                .defaultSuccessUrl("/", false) // 로그인 성공 시 이동할 기본 페이지
                 .failureUrl("/login?error=true") // 로그인 실패 시
                 .permitAll()
             )
@@ -50,5 +60,7 @@ public class SecurityConfig {
 
         return http.build();
     }
+    
+
 }
 

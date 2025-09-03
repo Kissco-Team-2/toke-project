@@ -24,11 +24,14 @@ public class Users {
 
     @Column(nullable = false, length = 255)
     private String password; // 암호화된 비밀번호
+    
+    @Column(name = "phone_number", nullable = false, length = 20, unique = true)
+    private String phoneNumber;
 
     @Column(nullable = false, length = 100, unique = true)
     private String email;
 
-    @Column(nullable = false, length = 6, unique = true)
+    @Column(nullable = false, length = 6, unique = true) //length 6=>20변경
     private String nickname;
 
     @Column(nullable = false, length = 50)
