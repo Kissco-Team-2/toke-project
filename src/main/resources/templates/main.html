@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="fragments/header :: site-head"></head>
+<style>
+.form-control::placeholder {
+    color: #bbb; 
+    opacity: 1;    
+}
+</style>
 <body class="d-flex flex-column min-vh-100" style="margin: 0;">
 
 	<header th:replace="fragments/header :: site-header"></header>

@@ -33,6 +33,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // 개발 단계에서는 CSRF 비활성화 (실서비스는 활성 권장)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
+                		"/",
                         "/find_account_modal",
                         "/register_success", 
                         "/register", 
