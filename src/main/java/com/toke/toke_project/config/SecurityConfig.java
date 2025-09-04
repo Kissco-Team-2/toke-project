@@ -33,7 +33,7 @@ public class SecurityConfig {
 				// 비밀번호 찾기 흐름만 CSRF 제외
 				.ignoringRequestMatchers("/forgot/password/**"))
 				.authorizeHttpRequests(auth -> auth
-						.requestMatchers("/", "/login", "/find_account_modal", "/register_success", "/register",
+						.requestMatchers("/words", "/words/**", "/", "/login", "/find_account_modal", "/register_success", "/register",
 								"/forgot/**", "/css/**", "/js/**", "/img/**")
 						.permitAll()
 						.requestMatchers(org.springframework.http.HttpMethod.GET, "/lists", "/lists/*", "/lists/search")
