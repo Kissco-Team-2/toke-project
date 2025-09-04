@@ -3,8 +3,8 @@
 <head th:replace="fragments/header :: site-head"></head>
 <style>
 .form-control::placeholder {
-    color: #bbb; 
-    opacity: 1;    
+	color: #bbb;
+	opacity: 1;
 }
 </style>
 <body class="d-flex flex-column min-vh-100" style="margin: 0;">
@@ -17,12 +17,13 @@
 			style="background-color: #caf7cf; height: 600px; margin: 0; padding: 0;">
 			<div>
 				<h1 class="fw-bold display-4">TOKE</h1>
-				<form class="d-flex justify-content-center mt-3"
-					style="max-width: 400px; margin: auto;">
-					<input class="col-9 form-control me-2" type="search"
-						placeholder="표현 검색">
+				<form class="d-flex justify-content-center mt-3" method="get"
+					th:action="@{/words}" style="max-width: 400px; margin: auto;">
+					<input class="col-9 form-control me-2" type="search" name="q"
+					placeholder="표현 검색">
 					<button class="col-3 btn btn-dark" type="submit">검색</button>
 				</form>
+
 			</div>
 		</section>
 	</main>

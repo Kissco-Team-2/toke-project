@@ -15,8 +15,8 @@
 						<p>
 							회원님의 이메일은<br> <strong th:text="${email}">test@example.com</strong>입니다.
 						</p>
-						<div class="col-10 d-grid mt-3 mx-auto ">
-							<a href="/login" class="btn btn-soft-green">로그인 하러 가기</a>
+						<div class="col-6 d-grid mt-3 mx-auto ">
+							<a href="/login" class="btn btn-soft-green">로그인</a>
 						</div>
 					</div>
 
@@ -25,7 +25,7 @@
 						<img th:src="@{/img/error.svg}" alt="이메일 찾기 실패"
 							style="width: 100px; height: 100px; margin-bottom: 1.4rem;">
 						<p th:text="${error}" style="margin-top: 0.4rem;">일치하는 회원 정보를 찾을 수 없습니다.</p>
-						<div class="col-10 d-grid mx-auto" style="margin-top: 1.2rem;">
+						<div class="col-6 d-grid mx-auto" style="margin-top: 1.2rem;">
 							<button type="button" class="btn btn-secondary"
 								data-bs-dismiss="modal">돌아가기</button>
 						</div>

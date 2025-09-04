@@ -1,5 +1,5 @@
 package com.toke.toke_project.web;
-//컨트롤러 (관리자 라우트) URL과 화면 연결. 폼 검증 실패 시 그대로 폼 재표시
+
 import com.toke.toke_project.domain.Word;
 import com.toke.toke_project.service.AdminWordService;
 import com.toke.toke_project.web.dto.WordForm;
@@ -13,7 +13,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
 
 @Controller
 @RequiredArgsConstructor
@@ -22,16 +22,25 @@ public class AdminWordController {
 
     private final AdminWordService wordService;
 
-    // 전체 목록
+    // 전체 목록 (검색 + 카테고리 + 정렬 + 페이징)
     @GetMapping
     public String list(@RequestParam(defaultValue = "") String q,
                        @RequestParam(defaultValue = "") String category,
+                       @RequestParam(defaultValue = "recent") String mode,
+                       @RequestParam(defaultValue = "") String group,   // ✅ 추가
+                       @RequestParam(defaultValue = "0") int page,
+                       @RequestParam(defaultValue = "20") int size,
                        Model model) {
-        List<Word> words = wordService.list(q, category);
+
+        Page<Word> words = wordService.search(q, category, mode, group, page, size);
+
         model.addAttribute("words", words);
         model.addAttribute("q", q);
         model.addAttribute("category", category);
-        return "admin/words/list";
+        model.addAttribute("mode", mode);
+        model.addAttribute("group", group);
+
+        return "words/list";
     }
 
     @GetMapping("/new")
@@ -47,7 +56,7 @@ public class AdminWordController {
                          @AuthenticationPrincipal User principal) {
         if (binding.hasErrors()) return "admin/words/form";
 
-        Long adminUserId = 1L; // TODO: principal로부터 users.user_id 찾기
+        Long adminUserId = 1L; // TODO: principal -> users.user_id 매핑
         Long id = wordService.create(form, adminUserId);
         ra.addFlashAttribute("msg", "단어가 등록되었습니다.");
         return "redirect:/admin/words/" + id + "/edit";
