@@ -61,6 +61,10 @@ body {
 	flex: 2;
 }
 
+.word-ka {
+	flex: 2;
+}
+
 .word-ko {
 	flex: 2;
 	color: #333;
@@ -168,6 +172,7 @@ body {
 					<div class="p-2">
 						<div th:each="w : ${words}" class="word-row m-2">
 							<div class="word-ja" th:text="${w.japaneseWord}">ご連絡ありがとうございます。</div>
+							<div class="word-ka" th:text="${w.readingKana}">ごれんらくありがとうございます。</div>
 							<div class="word-ko" th:text="${w.koreanMeaning}">연락 감사합니다.</div>
 							<div class="word-ex" th:text="${w.exampleSentenceJp}">送っていただいた資料を確認しました。</div>
 						</div>
