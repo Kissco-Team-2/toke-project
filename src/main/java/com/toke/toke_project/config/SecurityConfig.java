@@ -1,6 +1,8 @@
 package com.toke.toke_project.config;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -46,5 +48,4 @@ public class SecurityConfig {
 
 		return http.build();
 	}
-
 }

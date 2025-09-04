@@ -21,10 +21,16 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("No user: " + email));
 
         return User.withUsername(u.getEmail())
-                   .password(u.getPassword())
-                   .roles(u.getRole())   // "user" -> ROLE_USER
-                   .build();
+                .password(u.getPassword())
+                .roles(normalizeForRoles(u.getRole())) // ✅ 정규화해서 전달
+                .build();
+    }
+
+    private String normalizeForRoles(String r) {
+        if (r == null) return "USER";
+        r = r.trim();
+        if (r.toUpperCase().startsWith("ROLE_")) r = r.substring(5);
+        return r.toUpperCase(); // admin -> ADMIN, user -> USER
     }
 }
-
 
