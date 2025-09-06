@@ -150,4 +150,28 @@ public class WordListController {
                 .filter(s -> !s.isBlank())
                 .toList();
     }
+    
+ // 2-1) 공식 → 커스텀 사본 전환
+    @PostMapping("/{id}/items/{itemId}/customize")
+    public String customize(@PathVariable Long id,
+                            @PathVariable Long itemId,
+                            @AuthenticationPrincipal User principal) {
+        Long me = currentUserId(principal);
+        wordListService.customizeFromOfficial(itemId, me);
+        return "redirect:/lists/" + id;
+    }
+
+    // 2-2) 커스텀 사본 수정
+    @PostMapping("/{id}/items/{itemId}/editCustom")
+    public String editCustom(@PathVariable Long id,
+                             @PathVariable Long itemId,
+                             @AuthenticationPrincipal User principal,
+                             @RequestParam String jp,
+                             @RequestParam(required=false) String kana,
+                             @RequestParam(required=false) String kr,
+                             @RequestParam(required=false) String ex) {
+        Long me = currentUserId(principal);
+        wordListService.updateCustomItem(itemId, me, jp, kana, kr, ex);
+        return "redirect:/lists/" + id;
+    }
 }
