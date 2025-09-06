@@ -180,4 +180,43 @@ public class WordListService {
         if (s.length() > 50) s = s.substring(0, 50);
         return s;
     }
+    
+    @Transactional
+    public Long customizeFromOfficial(Long listItemId, Long ownerId) {
+        WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+        // 소유자 체크
+        if (!it.getWordList().getOwner().getId().equals(ownerId)) {
+            throw new SecurityException("권한 없음");
+        }
+        if (it.getWord() == null) {
+            // 이미 커스텀인 경우는 그대로 반환
+            return it.getId();
+        }
+        // 공식 단어를 커스텀 필드로 복사하고, 공식 참조를 끊는다
+        Word w = it.getWord();
+        it.setCustomJapaneseWord(w.getJapaneseWord());
+        it.setCustomReadingKana(w.getReadingKana());
+        it.setCustomKoreanMeaning(w.getKoreanMeaning());
+        it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
+        it.setWord(null); // 공식 참조 해제 → 이제 완전 커스텀 항목
+        // 필요 시 category를 커스텀에도 보관하고 싶다면 WLI에 custom_category 컬럼을 추가하는 방식도 가능
+        return it.getId();
+    }
+
+    @Transactional
+    public void updateCustomItem(Long listItemId, Long ownerId,
+                                 String jp, String kana, String kr, String ex) {
+        WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+        if (!it.getWordList().getOwner().getId().equals(ownerId)) {
+            throw new SecurityException("권한 없음");
+        }
+        // 커스텀만 수정 허용 (공식 연결 상태면 먼저 customizeFromOfficial 호출 유도)
+        if (it.getWord() != null) {
+            throw new IllegalStateException("공식 단어는 직접 수정할 수 없습니다. 먼저 '내 사본으로 전환'을 해주세요.");
+        }
+        it.setCustomJapaneseWord(jp);
+        it.setCustomReadingKana(kana);
+        it.setCustomKoreanMeaning(kr);
+        it.setCustomExampleSentenceJp(ex);
+    }
 }
