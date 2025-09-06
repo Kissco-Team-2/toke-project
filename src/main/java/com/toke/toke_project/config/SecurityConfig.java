@@ -28,24 +28,63 @@ public class SecurityConfig {
 		return authConfig.getAuthenticationManager();
 	}
 
-	// 3) Spring Security 필터 체인 설정
-	@Bean
-	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-		http.csrf(csrf -> csrf
-				// 비밀번호 찾기 흐름만 CSRF 제외
-				.ignoringRequestMatchers("/forgot/password/**"))
-				.authorizeHttpRequests(auth -> auth
-						.requestMatchers("/words", "/words/**", "/", "/login", "/find_account_modal", "/register_success", "/register",
-								"/forgot/**", "/css/**", "/js/**", "/img/**")
-						.permitAll()
-						.requestMatchers(org.springframework.http.HttpMethod.GET, "/lists", "/lists/*", "/lists/search")
-						.permitAll().requestMatchers("/lists/**").authenticated().requestMatchers("/admin/**")
-						.hasRole("ADMIN").anyRequest().authenticated())
-				.formLogin(login -> login.loginPage("/login").loginProcessingUrl("/login").usernameParameter("email")
-						.passwordParameter("password").defaultSuccessUrl("/", false).failureUrl("/login?error=true")
-						.permitAll())
-				.logout(logout -> logout.logoutUrl("/logout").logoutSuccessUrl("/login?logout=true").permitAll());
 
-		return http.build();
-	}
+    // 인가 규칙
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(auth -> auth
+                // --- 완전 공개 ---
+                .requestMatchers(
+                    "/", "/error",
+                    "/login", "/register", "/register_success",
+                    "/forgot/**",
+                    "/find_account_modal",
+                    "/css/**", "/js/**", "/img/**", "/webjars/**"
+                ).permitAll()
+
+                // --- QnA ---
+                // 목록/상세는 GET 공개
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/qna", "/qna/*").permitAll()
+                // 작성(폼/등록), 종료는 인증 필요
+                .requestMatchers(org.springframework.http.HttpMethod.GET,  "/qna/new").authenticated()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/qna").authenticated()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/qna/*/close").authenticated()
+                // 답변은 관리자 전용
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/qna/*/reply").hasRole("ADMIN")
+
+                // --- 모두의 단어장 ---
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/lists", "/lists/*", "/lists/search").permitAll()
+                .requestMatchers("/lists/**").authenticated()
+
+                // --- 오답 퀴즈 ---
+                .requestMatchers("/wrong-quiz/**").authenticated()
+
+                // --- 마이페이지 ---
+                .requestMatchers("/mypage/**").authenticated()
+
+                // --- 관리자 ---
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+
+                // 그 외 전부 인증
+                .anyRequest().authenticated()
+            )
+            .formLogin(login -> login
+                .loginPage("/login")
+                .loginProcessingUrl("/login")
+                .usernameParameter("email")
+                .passwordParameter("password")
+                .defaultSuccessUrl("/", false)
+                .failureUrl("/login?error=true")
+                .permitAll()
+            )
+            .logout(logout -> logout
+                .logoutUrl("/logout")
+                .logoutSuccessUrl("/login?logout=true")
+                .permitAll()
+            );
+
+        return http.build();
+    }
 }
