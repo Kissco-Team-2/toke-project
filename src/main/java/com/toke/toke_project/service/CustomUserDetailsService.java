@@ -33,4 +33,3 @@ public class CustomUserDetailsService implements UserDetailsService {
         return r.toUpperCase(); // admin -> ADMIN, user -> USER
     }
 }
-
