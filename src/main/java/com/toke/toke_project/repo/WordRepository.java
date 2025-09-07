@@ -49,4 +49,32 @@ public interface WordRepository extends JpaRepository<Word, Long> {
 	Page<Word> findByJaGroupStartingWithAndCategoryContainingAndKeyword(@Param("q") String q,
 			@Param("category") String category, @Param("group") String group, Pageable pageable);
 
+	
+	//퀴즈 관련
+	/** 카테고리에서 임의 N개(Oracle) */
+	@Query(value = "SELECT * FROM word WHERE category = :category ORDER BY DBMS_RANDOM.VALUE", nativeQuery = true)
+	List<Word> findRandomByCategoryOracle(@Param("category") String category, Pageable pageable);
+
+	/** 오답 후보: 같은 카테고리, 자신 제외, 한국어 뜻 랜덤 DISTINCT */
+	@Query(value = """
+			SELECT DISTINCT korean_meaning
+			FROM word
+			WHERE category = :category
+			  AND word_id <> :excludeId
+			ORDER BY DBMS_RANDOM.VALUE
+			""", nativeQuery = true)
+	List<String> findRandomMeaningsForDistractorsOracle(@Param("category") String category,
+			@Param("excludeId") Long excludeId, Pageable pageable);
+
+	/** 오답 후보: 같은 카테고리, 자신 제외, 일본어 단어 랜덤 DISTINCT */
+	@Query(value = """
+			SELECT DISTINCT japanese_word
+			FROM word
+			WHERE category = :category
+			  AND word_id <> :excludeId
+			ORDER BY DBMS_RANDOM.VALUE
+			""", nativeQuery = true)
+	List<String> findRandomJapaneseForDistractorsOracle(@Param("category") String category,
+			@Param("excludeId") Long excludeId, Pageable pageable);
+
 }
