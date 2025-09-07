@@ -10,3 +10,4 @@ import com.toke.toke_project.domain.Quiz;
 public interface QuizRepository extends JpaRepository<Quiz, Long> {
 
 }
+

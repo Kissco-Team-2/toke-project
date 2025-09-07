@@ -51,30 +51,56 @@ public interface WordRepository extends JpaRepository<Word, Long> {
 
 	
 	//퀴즈 관련
-	/** 카테고리에서 임의 N개(Oracle) */
-	@Query(value = "SELECT * FROM word WHERE category = :category ORDER BY DBMS_RANDOM.VALUE", nativeQuery = true)
-	List<Word> findRandomByCategoryOracle(@Param("category") String category, Pageable pageable);
+	 /** 전체에서 임의 N개(Oracle) */
+    @Query(value = """
+        SELECT * FROM (
+          SELECT * FROM word
+          ORDER BY DBMS_RANDOM.VALUE
+        ) WHERE ROWNUM <= :limit
+        """, nativeQuery = true)
+    List<Word> findRandomOracle(@Param("limit") int limit);
 
-	/** 오답 후보: 같은 카테고리, 자신 제외, 한국어 뜻 랜덤 DISTINCT */
-	@Query(value = """
-			SELECT DISTINCT korean_meaning
-			FROM word
-			WHERE category = :category
-			  AND word_id <> :excludeId
-			ORDER BY DBMS_RANDOM.VALUE
-			""", nativeQuery = true)
-	List<String> findRandomMeaningsForDistractorsOracle(@Param("category") String category,
-			@Param("excludeId") Long excludeId, Pageable pageable);
+    /** 카테고리에서 임의 N개 — 공백/전각 공백/양끝 공백을 무시하고 비교 */
+    @Query(value = """
+        SELECT * FROM (
+          SELECT * FROM word
+           WHERE TRIM(REGEXP_REPLACE(category, '\\s+', '')) =
+                 TRIM(REGEXP_REPLACE(:category, '\\s+', ''))
+           ORDER BY DBMS_RANDOM.VALUE
+        ) WHERE ROWNUM <= :limit
+        """, nativeQuery = true)
+    List<Word> findRandomByCategoryOracleFlex(@Param("category") String category,
+                                              @Param("limit") int limit);
 
-	/** 오답 후보: 같은 카테고리, 자신 제외, 일본어 단어 랜덤 DISTINCT */
-	@Query(value = """
-			SELECT DISTINCT japanese_word
-			FROM word
-			WHERE category = :category
-			  AND word_id <> :excludeId
-			ORDER BY DBMS_RANDOM.VALUE
-			""", nativeQuery = true)
-	List<String> findRandomJapaneseForDistractorsOracle(@Param("category") String category,
-			@Param("excludeId") Long excludeId, Pageable pageable);
+    /** 오답 후보(한글 뜻) — 동일한 유연 비교 */
+    @Query(value = """
+        SELECT * FROM (
+          SELECT DISTINCT korean_meaning
+            FROM word
+           WHERE TRIM(REGEXP_REPLACE(category, '\\s+', '')) =
+                 TRIM(REGEXP_REPLACE(:category, '\\s+', ''))
+             AND word_id <> :excludeId
+           ORDER BY DBMS_RANDOM.VALUE
+        ) WHERE ROWNUM <= :limit
+        """, nativeQuery = true)
+    List<String> findRandomMeaningsForDistractorsOracle(
+            @Param("category") String category,
+            @Param("excludeId") Long excludeId,
+            @Param("limit") int limit);
 
+    /** 오답 후보(일본어 표기) — 동일한 유연 비교 */
+    @Query(value = """
+        SELECT * FROM (
+          SELECT DISTINCT japanese_word
+            FROM word
+           WHERE TRIM(REGEXP_REPLACE(category, '\\s+', '')) =
+                 TRIM(REGEXP_REPLACE(:category, '\\s+', ''))
+             AND word_id <> :excludeId
+           ORDER BY DBMS_RANDOM.VALUE
+        ) WHERE ROWNUM <= :limit
+        """, nativeQuery = true)
+    List<String> findRandomJapaneseForDistractorsOracle(
+            @Param("category") String category,
+            @Param("excludeId") Long excludeId,
+            @Param("limit") int limit);
 }

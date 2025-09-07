@@ -1,5 +1,6 @@
 package com.toke.toke_project.service;
 
+import java.util.stream.Collectors;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.toke.toke_project.domain.Quiz;
 import com.toke.toke_project.domain.QuizResult;
@@ -40,20 +41,40 @@ public class QuizService {
         this.quizCache = quizCache;
     }
 
+    /* -------------------- 생성 (관리자) -------------------- */
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public QuizView generate(GenerateRequest req) {
-        String category = req.category();
+        return generateInternal(req);
+    }
+
+    /* -------------------- 생성 (사용자) -------------------- */
+    @Transactional
+    public QuizView generateForUser(GenerateRequest req) {
+        return generateInternal(req);
+    }
+
+    /* 공통 내부 구현 */
+    private QuizView generateInternal(GenerateRequest req) {
+        String rawCategory = req.category();
+        String category = normalizeCategory(rawCategory);              // "고객 대응" -> "고객대응" 등
+        boolean isAll = isAllCategory(category);
+
         QuestionMode mode = (req.mode() == null) ? QuestionMode.JP_TO_KR : req.mode();
         int n = (req.questionCount() == null || req.questionCount() <= 0) ? 10 : req.questionCount();
 
-        // 카테고리 랜덤 N개(Oracle)
-        List<Word> picked = wordRepo.findRandomByCategoryOracle(category, PageRequest.of(0, n));
-        if (picked.size() < n)
+     // 1) 문제용 단어 뽑기
+        List<Word> picked = isAll
+                ? wordRepo.findRandomOracle(n)
+                : wordRepo.findRandomByCategoryOracleFlex(category, n);
+
+        if (picked.size() < n) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "해당 카테고리에 문제가 부족합니다.");
+        }
 
         List<QuizQuestion> questions = new ArrayList<>();
 
+        // 2) 각 문항 구성 + quiz 저장
         for (Word w : picked) {
             final String prompt;
             final String correctText;
@@ -66,11 +87,13 @@ public class QuizService {
                 correctText = w.getJapaneseWord();
             }
 
-            List<String> options = buildOptions(category, w, mode, correctText);
+            // “전체”를 택한 경우 보기 후보는 해당 단어의 실제 카테고리에서 뽑아서 맥락 유지
+            String distractorCategory = isAll ? w.getCategory() : category;
+
+            List<String> options = buildOptions(distractorCategory, w, mode, correctText);
             int answerIndex = options.indexOf(correctText);
             String correctKey = indexToKey(answerIndex);
 
-            // 1) quiz 테이블 저장 → quiz_id 확보
             Quiz q = new Quiz();
             q.setQuestionType(mode.name());
             q.setQuestion(prompt);
@@ -79,93 +102,100 @@ public class QuizService {
             q.setOptionC(options.get(2));
             q.setOptionD(options.get(3));
             q.setCorrectAnswer(correctKey);
-            q.setCreatedBy(2L); // 정책에 맞게 수정 가능
+            q.setCreatedBy(2L); // 필요 시 실제 사용자/관리자 id로 교체
             q.setCreatedAt(LocalDateTime.now());
-            Quiz saved = quizRepo.save(q);
 
-            // 2) 캐시에 정답 포함 문항 저장 (quizId 포함)
+            Quiz saved = quizRepo.save(q);
             questions.add(new QuizQuestion(saved.getQuizId(), prompt, options, answerIndex));
         }
 
+        // 3) 캐시에 저장 & 사용자에게 뷰 반환(정답 제외)
         String quizUuid = UUID.randomUUID().toString();
-        QuizPaper paper = new QuizPaper(quizUuid, category, mode, questions);
+        QuizPaper paper = new QuizPaper(quizUuid, isAll ? "전체" : category, mode, questions);
         quizCache.put(quizUuid, paper);
 
-        // 사용자에겐 정답 제외된 뷰 제공
         List<QuizViewItem> items = paper.questions().stream()
                 .map(q -> new QuizViewItem(q.prompt(), q.options()))
                 .toList();
 
-        return new QuizView(quizUuid, category, mode, items);
+        return new QuizView(quizUuid, isAll ? "전체" : category, mode, items);
     }
 
-    /**
-     * 채점: 캐시된 QuizPaper 기준으로 채점(정답 비교), quiz_result에 저장, 문항별 상세 GradeResponse 반환
-     */
+    /* -------------------- 채점 -------------------- */
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @Transactional
     public GradeResponse grade(String quizUuid, GradeRequest req, Long userId) {
         QuizPaper paper = quizCache.getIfPresent(quizUuid);
-        if (paper == null)
+        if (paper == null) {
             throw new ResponseStatusException(HttpStatus.GONE, "퀴즈가 만료되었거나 존재하지 않습니다.");
+        }
 
         int total = paper.questions().size();
-        int correctCount = 0;
-        List<QuestionResult> results = new ArrayList<>();
+
+        // answers: Map<문항index, 선택지index>
+        Map<Integer, Integer> answerMap =
+                (req != null && req.answers() != null) ? req.answers() : Collections.emptyMap();
+
+        int correctCount = 0;                          // ✅ 누락되었던 선언
+        List<QuestionResult> results = new ArrayList<>(); // ✅ 누락되었던 선언
 
         for (int i = 0; i < total; i++) {
             QuizQuestion q = paper.questions().get(i);
-            Integer pick = req.answers().get(i); // 0..3 또는 null
 
-            boolean isCorrect = (pick != null && pick >= 0 && pick < q.options().size() && q.answerIndex() == pick);
+            // 사용자가 고른 답(없으면 null)
+            Integer pick = answerMap.get(i);
+
+            boolean isCorrect =
+                    (pick != null && pick >= 0 && pick < q.options().size() && q.answerIndex() == pick);
             if (isCorrect) correctCount++;
 
             String userKey = (pick == null || pick < 0 || pick > 3) ? null : indexToKey(pick);
 
-            // DB 저장 (quiz_result)
+            // 결과 저장 (quiz_result)
             QuizResult r = new QuizResult();
             r.setUserId(userId);
-            r.setQuizId(q.quizId());              // FK to quiz.quiz_id
-            r.setUserAnswer(userKey);             // A/B/C/D or null
+            r.setQuizId(q.quizId());
+            r.setUserAnswer(userKey);             // "A"/"B"/"C"/"D" or null
             r.setIsCorrect(isCorrect ? "Y" : "N");
             r.setCreatedAt(LocalDateTime.now());
             quizResultRepo.save(r);
 
-            // 응답용 문항 결과 생성 (정답 인덱스 포함)
+            // 프론트에 돌려줄 문항별 결과
             results.add(new QuestionResult(
                     i,
                     q.prompt(),
                     q.options(),
-                    pick,
+                    pick,               // Integer 그대로(null 허용)
                     q.answerIndex(),
                     isCorrect
             ));
         }
 
-        // 필요하면 1회성 처리: quizCache.invalidate(quizUuid);
+        // 필요 시 1회성 퀴즈로 만들려면 주석 해제
+        // quizCache.invalidate(quizUuid);
 
         return new GradeResponse(total, correctCount, results);
     }
 
-    // ---- 내부 유틸 ----
+    /* -------------------- 내부 유틸 -------------------- */
     private List<String> buildOptions(String category, Word target, QuestionMode mode, String correctText) {
         List<String> options = new ArrayList<>(4);
         options.add(correctText);
 
-        List<String> distractors;
-        if (mode == QuestionMode.JP_TO_KR) {
-            // 주의: Word 엔티티의 PK 접근자가 getId()가 아닐 경우(getWordId()) 여기 이름을 바꿔 주세요.
-            distractors = wordRepo.findRandomMeaningsForDistractorsOracle(
-                    category, target.getId(), PageRequest.of(0, 20));
-        } else {
-            distractors = wordRepo.findRandomJapaneseForDistractorsOracle(
-                    category, target.getId(), PageRequest.of(0, 20));
-        }
+     // 보기(오답) 뽑기
+        List<String> distractors = (mode == QuestionMode.JP_TO_KR)
+                ? wordRepo.findRandomMeaningsForDistractorsOracle(category, target.getId(), 20)
+                : wordRepo.findRandomJapaneseForDistractorsOracle(category, target.getId(), 20);
 
-        distractors.removeIf(s -> s == null || s.isBlank() || s.equals(correctText));
-        distractors = distractors.stream().distinct().toList();
-        if (distractors.size() < 3)
+        // null/빈문자/정답 제거 + 중복 제거 후 "수정 가능한" 리스트로 변환
+        distractors = distractors.stream()
+                .filter(s -> s != null && !s.isBlank() && !s.equals(correctText))
+                .distinct()
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        if (distractors.size() < 3) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "오답 후보가 부족합니다.");
+        }
 
         Collections.shuffle(distractors);
         options.addAll(distractors.subList(0, 3));
@@ -181,5 +211,17 @@ public class QuizService {
             case 3 -> "D";
             default -> null;
         };
+    }
+
+    private String normalizeCategory(String in) {
+        if (in == null) return null;
+        String s = in.trim();
+        // 공백/특수기호 제거해서 저장된 카테고리와 맞추고 싶다면 아래 라인도 가능:
+        // s = s.replaceAll("\\s+", "");
+        if ("고객 대응".equals(s)) s = "고객대응"; // 버튼 라벨 보정
+        return s;
+    }
+    private boolean isAllCategory(String s) {
+        return s == null || s.isBlank() || "전체".equals(s);
     }
 }

@@ -54,6 +54,11 @@ public class SecurityConfig {
 
 						// --- 마이페이지 ---
 						.requestMatchers("/mypage/**").authenticated()
+						
+						 // --- 퀴즈 UI(로그인 필수) ---
+					    .requestMatchers(HttpMethod.GET,  "/quiz").authenticated()
+					    .requestMatchers(HttpMethod.POST, "/quiz/start").authenticated()
+					    .requestMatchers(HttpMethod.POST, "/quiz/*/submit").authenticated()
 
 						// --- 퀴즈 API 추가 ---
 						// 관리자 생성: /admin/quiz/generate
