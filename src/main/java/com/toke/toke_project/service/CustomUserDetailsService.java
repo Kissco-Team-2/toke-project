@@ -1,9 +1,14 @@
-package com.toke.toke_project.service;
+ package com.toke.toke_project.service;
 
 import com.toke.toke_project.domain.Users;
 import com.toke.toke_project.repo.UsersRepository;
+import com.toke.toke_project.security.CustomUserDetails;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.userdetails.User;
+
+import java.util.List;
+
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -20,10 +25,11 @@ public class CustomUserDetailsService implements UserDetailsService {
         Users u = usersRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("No user: " + email));
 
-        return User.withUsername(u.getEmail())
-                .password(u.getPassword())
-                .roles(normalizeForRoles(u.getRole())) // ✅ 정규화해서 전달
-                .build();
+        String role = normalizeForRoles(u.getRole());
+        List<SimpleGrantedAuthority> authorities =
+                List.of(new SimpleGrantedAuthority("ROLE_" + role));
+
+        return CustomUserDetails.from(u, authorities);
     }
 
     private String normalizeForRoles(String r) {
