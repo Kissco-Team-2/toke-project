@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8" />
+  <title>퀴즈</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    .quiz-card{border:1px solid #e9ecef;border-radius:14px;padding:32px 28px}
+    .q-index-badge{display:inline-block;width:28px;height:28px;border-radius:50%;background:#0aad60;color:#fff;
+                   font-weight:700;line-height:28px;text-align:center;margin-right:8px}
+    .choice{display:block;padding:10px 12px;border-radius:8px;border:1px solid #e6e6e6;margin-bottom:10px;cursor:pointer}
+    .choice:hover{background:#f8f9fa}
+    .choice input{margin-right:10px}
+    .nav-arrow{font-size:26px;cursor:pointer;user-select:none}
+    .page-dot{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;
+              border:1px solid #dcdcdc;margin:0 4px;font-size:14px}
+    .page-dot.active{background:#212529;color:#fff;border-color:#212529}
+    .page-dot.answered{border-color:#0aad60;color:#0aad60}
+    .hidden{display:none !important}
+  </style>
+</head>
+<body class="bg-white">
+<header th:replace="fragments/header :: site-header"></header>
+
+<main class="container py-5">
+  <h4 class="fw-bold mb-4">퀴즈</h4>
+
+  <!-- 퀴즈 카드 -->
+  <div class="quiz-card">
+
+    <!-- 상단 진행 표시 -->
+    <div class="d-flex align-items-center mb-3">
+      <span class="q-index-badge" id="qIdxBadge">1</span>
+      <div class="text-success fw-semibold me-2" id="qNumber">Q1</div>
+      <div class="fs-5 fw-semibold" id="qPrompt">문제 내용</div>
+    </div>
+
+    <!-- 좌/우 네비게이션 -->
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <div class="nav-arrow px-3" id="prevBtn" title="이전">&lsaquo;</div>
+      <div class="nav-arrow px-3" id="nextBtn" title="다음">&rsaquo;</div>
+    </div>
+
+    <!-- 문항 컨테이너들: 서버에서 모두 렌더링하고 JS로 보여줄 것만 표시 -->
+    <div id="questionContainers">
+      <div th:each="item, stat : ${quiz.items}"
+           class="question hidden"
+           th:data-index="${stat.index}"
+           th:data-prompt="${item.prompt}">
+        <label class="choice" th:each="opt, iStat : ${item.options}">
+          <input type="radio"
+                 th:name="|answers[${stat.index}]|"    
+                 th:value="${iStat.index}"> <!-- List<Integer> → 컨트롤러에서 Map으로 바꿔도 name은 그대로 사용 -->
+          <span th:text="${opt}">옵션</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 페이지 점 -->
+    <div class="d-flex justify-content-center mt-3">
+      <a href="javascript:void(0)"
+         th:each="item, stat : ${quiz.items}"
+         class="page-dot"
+         th:attr="data-index=${stat.index}">
+        <span th:text="${stat.index + 1}">1</span>
+      </a>
+    </div>
+
+    <!-- 제출 -->
+    <form th:action="@{|/quiz/${quiz.quizId}/submit|}" method="post" id="submitForm" class="text-center mt-4">
+      <button type="submit" class="btn btn-dark px-4 py-2">제출하기</button>
+    </form>
+  </div>
+</main>
+
+<footer th:replace="fragments/footer :: site-footer"></footer>
+
+<!-- JS: 렌더/네비/표시 -->
+<script th:inline="javascript">
+  const TOTAL = /*[[${quiz.items.size()}]]*/ 0;
+
+  const qs  = (sel) => document.querySelector(sel);
+  const qsa = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const $questions  = qsa('.question');
+  const $dots       = qsa('.page-dot');
+  const $prev       = qs('#prevBtn');
+  const $next       = qs('#nextBtn');
+  const $qIdxBadge  = qs('#qIdxBadge');
+  const $qNumber    = qs('#qNumber');
+  const $qPrompt    = qs('#qPrompt');
+
+  let current = 0;
+
+  function show(idx){
+    if (idx < 0 || idx >= TOTAL) return;
+
+    // 모든 문항 숨기고 해당 문항만 노출
+    $questions.forEach(el => el.classList.add('hidden'));
+    const $cur = $questions[idx];
+    if ($cur) $cur.classList.remove('hidden');
+
+    // 상단 텍스트 갱신 (data-prompt에서 꺼냄)
+    const prompt = $cur ? ($cur.dataset.prompt || '') : '';
+    $qIdxBadge.textContent = (idx + 1);
+    $qNumber.textContent   = 'Q' + (idx + 1);
+    $qPrompt.textContent   = prompt;
+
+    // 페이지 점 활성화
+    $dots.forEach(d => d.classList.remove('active'));
+    const $dot = $dots[idx];
+    if ($dot) $dot.classList.add('active');
+
+    // 이전/다음 버튼 표시
+    $prev.style.visibility = idx === 0 ? 'hidden' : 'visible';
+    $next.style.visibility = idx === TOTAL - 1 ? 'hidden' : 'visible';
+
+    current = idx;
+  }
+
+  // 페이지 점 클릭 이동
+  $dots.forEach(d => d.addEventListener('click', () => show(parseInt(d.dataset.index, 10))));
+
+  // 좌우 버튼
+  $prev.addEventListener('click', () => show(current - 1));
+  $next.addEventListener('click', () => show(current + 1));
+
+  // 라디오 선택되면 해당 인덱스의 점을 'answered'로 표시
+  qsa('input[type=radio]').forEach(r => {
+    r.addEventListener('change', () => {
+      const name = r.getAttribute('name');       // answers[3]
+      const m = name.match(/\[(\d+)\]/);
+      if (!m) return;
+      const idx = parseInt(m[1], 10);
+      $dots[idx]?.classList.add('answered');
+    });
+  });
+
+  // 키보드 네비
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft')  show(current - 1);
+    if (e.key === 'ArrowRight') show(current + 1);
+  });
+
+  // 첫 문항 보이기
+  show(0);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
