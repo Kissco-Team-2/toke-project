@@ -19,6 +19,10 @@ public class Quiz {
 	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "quiz_seq")
 	@Column(name = "quiz_id")
 	private Long quizId;
+	
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "word_id")
+	private Word word;
 
 	@Column(name = "question_type")
 	private String questionType; // "JP_TO_KR" or "KR_TO_JP"

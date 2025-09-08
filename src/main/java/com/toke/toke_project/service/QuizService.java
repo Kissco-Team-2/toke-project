@@ -1,27 +1,31 @@
 package com.toke.toke_project.service;
 
-import java.util.stream.Collectors;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.toke.toke_project.domain.Quiz;
 import com.toke.toke_project.domain.QuizResult;
 import com.toke.toke_project.domain.Word;
+import com.toke.toke_project.domain.WrongNote;
 import com.toke.toke_project.repo.QuizRepository;
 import com.toke.toke_project.repo.QuizResultRepository;
 import com.toke.toke_project.repo.WordRepository;
+import com.toke.toke_project.repo.WrongNoteRepository;
 import com.toke.toke_project.service.model.*;
 import com.toke.toke_project.web.dto.*;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Quiz 관련 서비스: 생성(관리자), 채점(사용자) — 채점 시 문항별 상세 결과 반환 및 quiz_result 저장
+ * Quiz 관련 서비스: 기존 생성(관리자), 채점(사용자) 외에
+ * - 오답노트 기반 퀴즈 생성(generateFromWrongNotesForUser) 추가
  */
 @Service
 public class QuizService {
@@ -29,41 +33,44 @@ public class QuizService {
     private final WordRepository wordRepo;
     private final QuizRepository quizRepo;
     private final QuizResultRepository quizResultRepo;
+    private final WrongNoteRepository wrongNoteRepo;
+    private final com.toke.toke_project.service.QuizResultService quizResultService;
     private final Cache<String, QuizPaper> quizCache;
 
     public QuizService(WordRepository wordRepo,
                        QuizRepository quizRepo,
                        QuizResultRepository quizResultRepo,
+                       WrongNoteRepository wrongNoteRepo,
+                       com.toke.toke_project.service.QuizResultService quizResultService,
                        Cache<String, QuizPaper> quizCache) {
         this.wordRepo = wordRepo;
         this.quizRepo = quizRepo;
         this.quizResultRepo = quizResultRepo;
+        this.wrongNoteRepo = wrongNoteRepo;
+        this.quizResultService = quizResultService;
         this.quizCache = quizCache;
     }
 
-    /* -------------------- 생성 (관리자) -------------------- */
+    /* -------------------- 기존 생성 메서드들 (관리자 / 일반) -------------------- */
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public QuizView generate(GenerateRequest req) {
         return generateInternal(req);
     }
 
-    /* -------------------- 생성 (사용자) -------------------- */
     @Transactional
     public QuizView generateForUser(GenerateRequest req) {
         return generateInternal(req);
     }
 
-    /* 공통 내부 구현 */
     private QuizView generateInternal(GenerateRequest req) {
         String rawCategory = req.category();
-        String category = normalizeCategory(rawCategory);              // "고객 대응" -> "고객대응" 등
+        String category = normalizeCategory(rawCategory);
         boolean isAll = isAllCategory(category);
 
         QuestionMode mode = (req.mode() == null) ? QuestionMode.JP_TO_KR : req.mode();
         int n = (req.questionCount() == null || req.questionCount() <= 0) ? 10 : req.questionCount();
 
-     // 1) 문제용 단어 뽑기
         List<Word> picked = isAll
                 ? wordRepo.findRandomOracle(n)
                 : wordRepo.findRandomByCategoryOracleFlex(category, n);
@@ -74,7 +81,6 @@ public class QuizService {
 
         List<QuizQuestion> questions = new ArrayList<>();
 
-        // 2) 각 문항 구성 + quiz 저장
         for (Word w : picked) {
             final String prompt;
             final String correctText;
@@ -87,7 +93,6 @@ public class QuizService {
                 correctText = w.getJapaneseWord();
             }
 
-            // “전체”를 택한 경우 보기 후보는 해당 단어의 실제 카테고리에서 뽑아서 맥락 유지
             String distractorCategory = isAll ? w.getCategory() : category;
 
             List<String> options = buildOptions(distractorCategory, w, mode, correctText);
@@ -102,14 +107,13 @@ public class QuizService {
             q.setOptionC(options.get(2));
             q.setOptionD(options.get(3));
             q.setCorrectAnswer(correctKey);
-            q.setCreatedBy(2L); // 필요 시 실제 사용자/관리자 id로 교체
+            q.setCreatedBy(2L); // 관리자 or system
             q.setCreatedAt(LocalDateTime.now());
 
             Quiz saved = quizRepo.save(q);
             questions.add(new QuizQuestion(saved.getQuizId(), prompt, options, answerIndex));
         }
 
-        // 3) 캐시에 저장 & 사용자에게 뷰 반환(정답 제외)
         String quizUuid = UUID.randomUUID().toString();
         QuizPaper paper = new QuizPaper(quizUuid, isAll ? "전체" : category, mode, questions);
         quizCache.put(quizUuid, paper);
@@ -121,7 +125,109 @@ public class QuizService {
         return new QuizView(quizUuid, isAll ? "전체" : category, mode, items);
     }
 
-    /* -------------------- 채점 -------------------- */
+    /* -------------------- 오답노트 기반 퀴즈 생성 -------------------- */
+    @Transactional
+    public QuizView generateFromWrongNotesForUser(Long userId, WrongNoteQuizRequest req) {
+        // 1) fetch user's wrong notes with quiz+word eagerly
+        List<WrongNote> notes = wrongNoteRepo.findByUserIdWithQuiz(userId);
+
+        // 2) apply filters (date range and/or category)
+        LocalDateTime from = null, to = null;
+        if (req.getDateFrom() != null) {
+            try { from = LocalDate.parse(req.getDateFrom()).atStartOfDay(); } catch (DateTimeParseException e) { /* ignore -> null */ }
+        }
+        if (req.getDateTo() != null) {
+            try { to = LocalDate.parse(req.getDateTo()).plusDays(1).atStartOfDay(); } catch (DateTimeParseException e) { /* ignore */ }
+        }
+        final LocalDateTime fFrom = from;
+        final LocalDateTime fTo   = to;
+        final String catFilter = (req.getCategory() == null || req.getCategory().isBlank()) ? null : req.getCategory().trim();
+
+        List<Word> candidates = notes.stream()
+                .map(wn -> {
+                    // prefer associated Word via wn.quiz.word, otherwise try to lookup by quiz.question
+                    Word w = (wn.getQuiz() != null) ? wn.getQuiz().getWord() : null;
+                    if (w == null && wn.getQuiz() != null && wn.getQuiz().getQuestion() != null) {
+                        w = wordRepo.findByJapaneseOrKorean(wn.getQuiz().getQuestion()).orElse(null);
+                    }
+                    return new AbstractMap.SimpleEntry<WrongNote, Word>(wn, w);
+                })
+                .filter(e -> e.getValue() != null) // must have Word to generate quiz
+                .filter(e -> {
+                    Word w = e.getValue();
+                    WrongNote wn = e.getKey();
+                    if (catFilter != null) {
+                        if (w.getCategory() == null) return false;
+                        if (!w.getCategory().equals(catFilter)) return false;
+                    }
+                    if (fFrom != null || fTo != null) {
+                        LocalDateTime lastWrong = quizResultRepo.findLastWrongDateByUserAndQuiz(userId, wn.getQuiz().getQuizId());
+                        if (lastWrong == null) return false;
+                        if (fFrom != null && lastWrong.isBefore(fFrom)) return false;
+                        if (fTo != null && !lastWrong.isBefore(fTo)) return false;
+                    }
+                    return true;
+                })
+                .map(AbstractMap.SimpleEntry::getValue)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (candidates.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "선택한 조건에 맞는 오답이 없습니다.");
+        }
+
+        int n = (req.getCount() == null || req.getCount() <= 0) ? Math.min(10, candidates.size()) : Math.min(req.getCount(), candidates.size());
+        Collections.shuffle(candidates);
+        List<Word> picked = candidates.subList(0, n);
+
+        // Build quizzes from picked words, reuse buildOptions etc.
+        QuestionMode mode = QuestionMode.JP_TO_KR; // or allow request to specify; default JP_TO_KR
+        List<QuizQuestion> questions = new ArrayList<>();
+        for (Word w : picked) {
+            final String prompt;
+            final String correctText;
+
+            if (mode == QuestionMode.JP_TO_KR) {
+                prompt = "'" + w.getJapaneseWord() + "'란 무슨 뜻입니까?";
+                correctText = w.getKoreanMeaning();
+            } else {
+                prompt = "'" + w.getKoreanMeaning() + "'에 해당하는 일본어는?";
+                correctText = w.getJapaneseWord();
+            }
+
+            String distractorCategory = (catFilter == null) ? w.getCategory() : catFilter;
+            List<String> options = buildOptions(distractorCategory, w, mode, correctText);
+            int answerIndex = options.indexOf(correctText);
+            String correctKey = indexToKey(answerIndex);
+
+            Quiz q = new Quiz();
+            q.setQuestionType(mode.name());
+            q.setQuestion(prompt);
+            q.setOptionA(options.get(0));
+            q.setOptionB(options.get(1));
+            q.setOptionC(options.get(2));
+            q.setOptionD(options.get(3));
+            q.setCorrectAnswer(correctKey);
+            q.setCreatedBy(userId); // created by the user (or system id if you prefer)
+            q.setCreatedAt(LocalDateTime.now());
+            q.setWord(w); // link to Word - ensure Quiz.word mapping exists
+
+            Quiz saved = quizRepo.save(q);
+            questions.add(new QuizQuestion(saved.getQuizId(), prompt, options, answerIndex));
+        }
+
+        String quizUuid = UUID.randomUUID().toString();
+        QuizPaper paper = new QuizPaper(quizUuid, catFilter == null ? "오답노트" : catFilter, mode, questions);
+        quizCache.put(quizUuid, paper);
+
+        List<QuizViewItem> items = paper.questions().stream()
+                .map(q -> new QuizViewItem(q.prompt(), q.options()))
+                .toList();
+
+        return new QuizView(quizUuid, catFilter == null ? "오답노트" : catFilter, mode, items);
+    }
+
+    /* -------------------- 채점 (grade) -------------------- */
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @Transactional
     public GradeResponse grade(String quizUuid, GradeRequest req, Long userId) {
@@ -132,17 +238,14 @@ public class QuizService {
 
         int total = paper.questions().size();
 
-        // answers: Map<문항index, 선택지index>
         Map<Integer, Integer> answerMap =
                 (req != null && req.answers() != null) ? req.answers() : Collections.emptyMap();
 
-        int correctCount = 0;                          // ✅ 누락되었던 선언
-        List<QuestionResult> results = new ArrayList<>(); // ✅ 누락되었던 선언
+        int correctCount = 0;
+        List<QuestionResult> results = new ArrayList<>();
 
         for (int i = 0; i < total; i++) {
             QuizQuestion q = paper.questions().get(i);
-
-            // 사용자가 고른 답(없으면 null)
             Integer pick = answerMap.get(i);
 
             boolean isCorrect =
@@ -151,43 +254,39 @@ public class QuizService {
 
             String userKey = (pick == null || pick < 0 || pick > 3) ? null : indexToKey(pick);
 
-            // 결과 저장 (quiz_result)
+            // 결과 저장 (quiz_result) — use QuizResultService to ensure wrong-note registration
             QuizResult r = new QuizResult();
             r.setUserId(userId);
             r.setQuizId(q.quizId());
-            r.setUserAnswer(userKey);             // "A"/"B"/"C"/"D" or null
+            r.setUserAnswer(userKey);
             r.setIsCorrect(isCorrect ? "Y" : "N");
             r.setCreatedAt(LocalDateTime.now());
-            quizResultRepo.save(r);
 
-            // 프론트에 돌려줄 문항별 결과
+            // use service which will call wrongNoteService.registerIfNotExists when needed
+            quizResultService.saveResult(r);
+
             results.add(new QuestionResult(
                     i,
                     q.prompt(),
                     q.options(),
-                    pick,               // Integer 그대로(null 허용)
+                    pick,
                     q.answerIndex(),
                     isCorrect
             ));
         }
 
-        // 필요 시 1회성 퀴즈로 만들려면 주석 해제
-        // quizCache.invalidate(quizUuid);
-
         return new GradeResponse(total, correctCount, results);
     }
 
-    /* -------------------- 내부 유틸 -------------------- */
+    /* -------------------- 내부 유틸: buildOptions, indexToKey, normalizeCategory... -------------------- */
     private List<String> buildOptions(String category, Word target, QuestionMode mode, String correctText) {
         List<String> options = new ArrayList<>(4);
         options.add(correctText);
 
-     // 보기(오답) 뽑기
         List<String> distractors = (mode == QuestionMode.JP_TO_KR)
                 ? wordRepo.findRandomMeaningsForDistractorsOracle(category, target.getId(), 20)
                 : wordRepo.findRandomJapaneseForDistractorsOracle(category, target.getId(), 20);
 
-        // null/빈문자/정답 제거 + 중복 제거 후 "수정 가능한" 리스트로 변환
         distractors = distractors.stream()
                 .filter(s -> s != null && !s.isBlank() && !s.equals(correctText))
                 .distinct()
@@ -216,9 +315,7 @@ public class QuizService {
     private String normalizeCategory(String in) {
         if (in == null) return null;
         String s = in.trim();
-        // 공백/특수기호 제거해서 저장된 카테고리와 맞추고 싶다면 아래 라인도 가능:
-        // s = s.replaceAll("\\s+", "");
-        if ("고객 대응".equals(s)) s = "고객대응"; // 버튼 라벨 보정
+        if ("고객 대응".equals(s)) s = "고객대응";
         return s;
     }
     private boolean isAllCategory(String s) {
