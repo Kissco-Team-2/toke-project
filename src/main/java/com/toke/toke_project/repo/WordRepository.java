@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface WordRepository extends JpaRepository<Word, Long> {
@@ -103,4 +104,15 @@ public interface WordRepository extends JpaRepository<Word, Long> {
             @Param("category") String category,
             @Param("excludeId") Long excludeId,
             @Param("limit") int limit);
+    
+    
+    
+   //오답노트 
+    Optional<Word> findByJapaneseWord(String japaneseWord);
+    Optional<Word> findByKoreanMeaning(String koreanMeaning);
+
+    // 편의용: 둘 중 하나 매칭되는 것 찾기
+    default Optional<Word> findByJapaneseOrKorean(String text) {
+        return findByJapaneseWord(text).or(() -> findByKoreanMeaning(text));
+    }
 }
