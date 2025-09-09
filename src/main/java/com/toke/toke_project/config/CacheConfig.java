@@ -20,5 +20,14 @@ public class CacheConfig {
 				.maximumSize(10_0000)
 				.build();
 	}
+	
+	// @Configuration 어딘가
+	@Bean
+	public Cache<String, QuizPaper> quizCache() {
+	  return Caffeine.newBuilder()
+	      .maximumSize(1000)
+	      .expireAfterWrite(Duration.ofMinutes(30))   // ⬅️ 최소 이 정도
+	      .build();
+	}
 
 }

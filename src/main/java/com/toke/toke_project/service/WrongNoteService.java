@@ -53,18 +53,14 @@ public class WrongNoteService {
         this.quizResultRepository = quizResultRepository;
     }
 
-    /**
-     * 안전한 등록: race condition 대비
-     */
+    /** 안전한 등록: race condition 대비 */
     @Transactional
     public WrongNote registerIfNotExists(Long userId, Long quizId) {
-        // 1) 먼저 간단히 조회해서 있으면 반환
         Optional<WrongNote> exist = wrongNoteRepository.findByUser_IdAndQuiz_QuizId(userId, quizId);
         if (exist.isPresent()) return exist.get();
 
-        // 2) 없는 경우 insert 시도 (EntityManager#getReference 로 proxy 참조)
         WrongNote wn = new WrongNote();
-        Users userRef = em.getReference(Users.class, userId); // attach reference without select
+        Users userRef = em.getReference(Users.class, userId);
         wn.setUser(userRef);
 
         Quiz quiz = quizRepository.findById(quizId)
@@ -76,44 +72,47 @@ public class WrongNoteService {
         try {
             return wrongNoteRepository.save(wn);
         } catch (DataIntegrityViolationException ex) {
-            // concurrent insert -> 누군가 먼저 만들었을 경우 다시 조회해서 반환
             return wrongNoteRepository.findByUser_IdAndQuiz_QuizId(userId, quizId)
                     .orElseThrow(() -> ex);
         }
     }
 
-    /**
-     * 단순 목록 (기본, 최신순)
-     */
+    /** 단순 목록 (기본 최신순) */
     @Transactional(readOnly = true)
     public List<WrongNoteDto> listByUser(Long userId) {
         List<WrongNote> notes = wrongNoteRepository.findByUserIdWithQuiz(userId);
-
         return notes.stream().map(wn -> toDto(wn, userId)).collect(Collectors.toList());
     }
 
-    /**
-     * 노트 내용 수정/생성
-     */
+    /** ✅ 노트 내용 저장/수정: 소유권 검사 추가 */
     @Transactional
-    public WrongNoteDto updateNote(Long noteId, String noteContent, String starred) {
+    public WrongNoteDto updateNote(Long noteId, Long userId, String noteContent, String starred) {
         WrongNote wn = wrongNoteRepository.findById(noteId)
                 .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
+
+        if (wn.getUser() == null || !wn.getUser().getId().equals(userId)) {
+            throw new SecurityException("Not allowed to edit this note");
+        }
+
         wn.setNote(noteContent);
         if (starred != null) wn.setStarred(starred);
+
         WrongNote saved = wrongNoteRepository.save(wn);
-
-        return toDto(saved, saved.getUser() != null ? saved.getUser().getId() : null);
+        return toDto(saved, userId);
     }
 
+    /** ✅ 단건 삭제: 소유권 검사 추가 */
     @Transactional
-    public void deleteNote(Long noteId) {
-        wrongNoteRepository.deleteById(noteId);
+    public void deleteNote(Long noteId, Long userId) {
+        WrongNote wn = wrongNoteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
+        if (wn.getUser() == null || !wn.getUser().getId().equals(userId)) {
+            throw new SecurityException("Not allowed to delete this note");
+        }
+        wrongNoteRepository.delete(wn);
     }
 
-    /**
-     * starred 직접 설정 (Y/N)
-     */
+    /** starred 직접 설정 (Y/N) */
     @Transactional
     public WrongNoteDto setStarred(Long noteId, Long userId, boolean starredFlag) {
         String val = starredFlag ? "Y" : "N";
@@ -131,9 +130,7 @@ public class WrongNoteService {
         return toDto(wn, userId);
     }
 
-    /**
-     * 원자적 토글 (DB CASE문 사용)
-     */
+    /** 원자적 토글 (DB CASE문 사용) */
     @Transactional
     public WrongNoteDto toggleStar(Long noteId, Long userId) {
         WrongNote wn = wrongNoteRepository.findById(noteId)
@@ -153,9 +150,7 @@ public class WrongNoteService {
         return toDto(updatedWn, userId);
     }
 
-    /**
-     * 사용자별 starred 리스트 반환 (DTO)
-     */
+    /** 사용자별 starred 리스트 반환 (DTO) */
     @Transactional(readOnly = true)
     public List<WrongNoteDto> listStarredByUser(Long userId) {
         List<WrongNote> notes = wrongNoteRepository.findByUser_IdAndStarredOrderByCreatedAtDesc(userId, "Y");
@@ -170,8 +165,6 @@ public class WrongNoteService {
         dto.setQuizId(wn.getQuiz() != null ? wn.getQuiz().getQuizId() : null);
         dto.setNote(wn.getNote());
         dto.setStarred(wn.getStarred());
-
-        // wrong_note 생성일
         dto.setNoteCreatedAt(wn.getCreatedAt());
 
         Word w = (wn.getQuiz() != null) ? wn.getQuiz().getWord() : null;
@@ -197,51 +190,42 @@ public class WrongNoteService {
     }
 
     /**
-     * 필터/정렬/페이징된 오답노트 반환 (최신순/ 날짜별(1개월, 3개월, 지난달, 직접설정) / 카테고리별(고객대응, 메일, 보고, 인사, 전화, 제안, 회의))
+     * 필터/정렬/페이징된 오답노트 반환
      */
     @Transactional(readOnly = true)
     public Page<WrongNoteDto> listByUserWithFilters(
             Long userId,
             String sort,
             String dateFilter,
-            String from,   // yyyy-MM-dd, optional (CUSTOM)
-            String to,     // yyyy-MM-dd, optional (CUSTOM)
+            String from,   // yyyy-MM-dd
+            String to,     // yyyy-MM-dd
             String category,
             int page,
             int size) {
 
-        // 1) 페치해서 DTO로 변환
         List<WrongNote> notes = wrongNoteRepository.findByUserIdWithQuiz(userId);
         List<WrongNoteDto> dtos = notes.stream()
                 .map(wn -> toDto(wn, userId))
                 .collect(Collectors.toList());
 
-        // 2) date filter 범위 계산 (임시 변수에 할당 후 final로 복사)
         LocalDateTime tmpFrom = null;
         LocalDateTime tmpTo = null;
         if (dateFilter != null && !"ALL".equalsIgnoreCase(dateFilter)) {
             LocalDate now = LocalDate.now(ZoneId.systemDefault());
             switch (dateFilter) {
-                case "1M":
-                    tmpFrom = now.minusMonths(1).atStartOfDay();
-                    tmpTo = now.plusDays(1).atStartOfDay();
-                    break;
-                case "3M":
-                    tmpFrom = now.minusMonths(3).atStartOfDay();
-                    tmpTo = now.plusDays(1).atStartOfDay();
-                    break;
-                case "LAST_MONTH":
+                case "1M" -> { tmpFrom = now.minusMonths(1).atStartOfDay(); tmpTo = now.plusDays(1).atStartOfDay(); }
+                case "3M" -> { tmpFrom = now.minusMonths(3).atStartOfDay(); tmpTo = now.plusDays(1).atStartOfDay(); }
+                case "LAST_MONTH" -> {
                     LocalDate firstOfLast = now.minusMonths(1).with(TemporalAdjusters.firstDayOfMonth());
                     LocalDate lastOfLast  = now.minusMonths(1).with(TemporalAdjusters.lastDayOfMonth());
                     tmpFrom = firstOfLast.atStartOfDay();
                     tmpTo   = lastOfLast.plusDays(1).atStartOfDay();
-                    break;
-                case "CUSTOM":
+                }
+                case "CUSTOM" -> {
                     if (from != null) tmpFrom = LocalDate.parse(from).atStartOfDay();
                     if (to   != null) tmpTo   = LocalDate.parse(to).plusDays(1).atStartOfDay();
-                    break;
-                default:
-                    break;
+                }
+                default -> {}
             }
         }
 
@@ -249,7 +233,6 @@ public class WrongNoteService {
         final LocalDateTime filterTo   = tmpTo;
         final String filterCategory = (category == null || category.isBlank()) ? null : category.trim();
 
-        // 3) apply category & date filters (date 기준은 lastWrongAt)
         List<WrongNoteDto> filtered = dtos.stream()
                 .filter(dto -> {
                     if (filterCategory != null) {
@@ -267,28 +250,26 @@ public class WrongNoteService {
                 })
                 .collect(Collectors.toList());
 
-        // 4) 정렬
         Comparator<WrongNoteDto> comparator;
         if ("LAST_WRONG_DATE".equalsIgnoreCase(sort)) {
             comparator = Comparator.comparing(WrongNoteDto::getLastWrongAt,
                     Comparator.nullsLast(Comparator.reverseOrder()));
-        } else { // default LATEST (wrong_note.created_at)
+        } else {
             comparator = Comparator.comparing(WrongNoteDto::getNoteCreatedAt,
                     Comparator.nullsLast(Comparator.reverseOrder()));
         }
         filtered.sort(comparator);
 
-        // 5) 페이징
         int fromIndex = page * size;
         int toIndex = Math.min(fromIndex + size, filtered.size());
         List<WrongNoteDto> pageContent = (fromIndex >= filtered.size()) ? List.of() : filtered.subList(fromIndex, toIndex);
 
         return new PageImpl<>(pageContent, PageRequest.of(page, size), filtered.size());
     }
-    
+
+    /** 일괄 삭제 (이미 소유자 검증 포함) */
     @Transactional
     public BulkDeleteResponse deleteNotesBulk(List<Long> noteIds, Long userId) {
-        // 1) 요청된 id들 중 DB에 존재하는 레코드 로드
         List<WrongNote> foundNotes = wrongNoteRepository.findAllById(noteIds);
 
         Set<Long> foundIds = foundNotes.stream().map(WrongNote::getNoteId).collect(Collectors.toSet());
@@ -296,7 +277,6 @@ public class WrongNoteService {
                 .filter(id -> !foundIds.contains(id))
                 .collect(Collectors.toList());
 
-        // 2) 소유자 검사: 요청자(userId)와 일치하는 것만 삭제 대상으로 선정
         List<WrongNote> ownedNotes = foundNotes.stream()
                 .filter(wn -> wn.getUser() != null && wn.getUser().getId().equals(userId))
                 .collect(Collectors.toList());
@@ -308,13 +288,10 @@ public class WrongNoteService {
                 .filter(id -> !ownedIds.contains(id))
                 .collect(Collectors.toList());
 
-        // 3) 삭제 수행 (batch delete 시도)
         if (!ownedIds.isEmpty()) {
             try {
-                // Spring Data JPA 2.5+ 에는 deleteAllByIdInBatch가 있음
                 wrongNoteRepository.deleteAllByIdInBatch(ownedIds);
             } catch (NoSuchMethodError | UnsupportedOperationException ex) {
-                // fallback: 하나씩 삭제 (트랜잭션 안에서 수행되므로 안전)
                 ownedIds.forEach(wrongNoteRepository::deleteById);
             }
         }
@@ -324,5 +301,4 @@ public class WrongNoteService {
 
         return new BulkDeleteResponse(ownedIds, notFound, notOwned, message);
     }
-    
 }
