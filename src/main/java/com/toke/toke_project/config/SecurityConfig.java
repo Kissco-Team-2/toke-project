@@ -31,55 +31,62 @@ public class SecurityConfig {
 
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-		http.csrf(csrf -> csrf.disable()) // REST 호출 위주면 disable 유지
-				.authorizeHttpRequests(auth -> auth
-						// --- 완전 공개 ---
-						.requestMatchers("/", "/error", "/login", "/register", "/register_success", "/forgot/**",
-								"/find_account_modal", "/css/**", "/js/**", "/img/**", "/webjars/**")
-						.permitAll()
+	    http
+	      .csrf(csrf -> csrf.disable())
+	      .authorizeHttpRequests(auth -> auth
+	          // --- 완전 공개 ---
+	          .requestMatchers("/", "/error", "/login", "/register", "/register_success",
+	                           "/forgot/**", "/find_account_modal",
+	                           "/css/**", "/js/**", "/img/**", "/webjars/**").permitAll()
 
-						// --- QnA ---
-						.requestMatchers(HttpMethod.GET, "/qna", "/qna/*").permitAll()
-						.requestMatchers(HttpMethod.GET, "/qna/new").authenticated()
-						.requestMatchers(HttpMethod.POST, "/qna").authenticated()
-						.requestMatchers(HttpMethod.POST, "/qna/*/close").authenticated()
-						.requestMatchers(HttpMethod.POST, "/qna/*/reply").hasRole("ADMIN")
+	          // --- QnA (목록/상세 공개, 작성/답변/닫기 제한) ---
+	          .requestMatchers(HttpMethod.GET, "/qna", "/qna/*").permitAll()
+	          .requestMatchers(HttpMethod.GET, "/qna/new").authenticated()
+	          .requestMatchers(HttpMethod.POST, "/qna").authenticated()
+	          .requestMatchers(HttpMethod.POST, "/qna/*/close").authenticated()
+	          .requestMatchers(HttpMethod.POST, "/qna/*/reply").hasRole("ADMIN")
 
-						// --- 모두의 단어장 ---
-						.requestMatchers(HttpMethod.GET, "/lists", "/lists/*", "/lists/search").permitAll()
-						.requestMatchers("/lists/**").authenticated()
+	          // --- 모두의 단어장(리스트 기능은 공개) ---
+	          .requestMatchers(HttpMethod.GET, "/lists", "/lists/*", "/lists/search").permitAll()
+	          .requestMatchers("/lists/**").authenticated()  // mine/편집/삭제 등은 로그인
 
-						// --- 오답 퀴즈 ---
-						.requestMatchers("/wrong-quiz/**").authenticated()
+	          // --- 단어장/표현 목록 보기·검색 (여기가 빠져서 다 막혔던 부분) ---
+	          .requestMatchers(HttpMethod.GET, "/words", "/words/**").permitAll()
 
-						// --- 마이페이지 ---
-						.requestMatchers("/mypage/**").authenticated()
-						
-						 // --- 퀴즈 UI(로그인 필수) ---
-					    .requestMatchers(HttpMethod.GET,  "/quiz").authenticated()
-					    .requestMatchers(HttpMethod.POST, "/quiz/start").authenticated()
-					    .requestMatchers(HttpMethod.POST, "/quiz/*/submit").authenticated()
+	          // --- 마이페이지 ---
+	          .requestMatchers("/mypage/**").authenticated()
 
-						// --- 퀴즈 API 추가 ---
-						// 관리자 생성: /admin/quiz/generate
-						.requestMatchers(HttpMethod.POST, "/admin/quiz/generate").hasRole("ADMIN")
-						// 사용자 채점: /quiz/{quizId}/grade
-						.requestMatchers(HttpMethod.POST, "/quiz/**/grade").hasAnyRole("USER", "ADMIN")
-						// (만약 퀴즈 조회/시작용 GET을 추가하면 여기에 GET 규칙도 추가)
+	          // --- 퀴즈 UI/API: 로그인 필요(정책 유지) ---
+	          .requestMatchers(HttpMethod.GET,  "/quiz").authenticated()
+	          .requestMatchers(HttpMethod.POST, "/quiz/start").authenticated()
+	          .requestMatchers(HttpMethod.POST, "/quiz/*/submit").authenticated()
+	          .requestMatchers(HttpMethod.POST, "/api/quiz/*/grade").hasAnyRole("USER","ADMIN")
 
-						// --- 관리자 ---
-						.requestMatchers("/admin/**").hasRole("ADMIN")
+	          // --- 오답노트: 로그인 필요(정책 유지) ---
+	          .requestMatchers("/wrong-notes/**").authenticated()
+	          .requestMatchers("/api/wrong-notes/**").authenticated()
 
-						// 그 외 전부 인증
-						.anyRequest().authenticated())
-				.formLogin(login -> login.loginPage("/login").loginProcessingUrl("/login").usernameParameter("email")
-						.passwordParameter("password").defaultSuccessUrl("/", false).failureUrl("/login?error=true")
-						.permitAll())
-				.logout(logout -> logout.logoutUrl("/logout").logoutSuccessUrl("/login?logout=true").permitAll());
+	          // --- 관리자 ---
+	          .requestMatchers("/admin/**").hasRole("ADMIN")
 
-		return http.build();
+	          // 그 외 전부 인증
+	          .anyRequest().authenticated()
+	      )
+	      .formLogin(login -> login
+	          .loginPage("/login")
+	          .loginProcessingUrl("/login")
+	          .usernameParameter("email")
+	          .passwordParameter("password")
+	          .defaultSuccessUrl("/", false)
+	          .failureUrl("/login?error=true")
+	          .permitAll()
+	      )
+	      .logout(logout -> logout
+	          .logoutUrl("/logout")
+	          .logoutSuccessUrl("/login?logout=true")
+	          .permitAll()
+	      );
+
+	    return http.build();
 	}
-	
-
-	
 }

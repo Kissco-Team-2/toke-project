@@ -8,5 +8,7 @@ public record QuestionResult(
     List<String> options,
     Integer userSelected, // null 가능
     int correctIndex,
-    boolean isCorrect
+    boolean isCorrect,
+    String explain,
+    String exampleSentenceJp
 ) {}

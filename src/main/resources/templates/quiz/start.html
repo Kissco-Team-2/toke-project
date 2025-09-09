@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <title>퀴즈</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css">
   <style>
     .quiz-card{border:1px solid #e9ecef;border-radius:14px;padding:32px 28px}
     .q-index-badge{display:inline-block;width:28px;height:28px;border-radius:50%;background:#0aad60;color:#fff;
@@ -27,55 +28,60 @@
 
   <!-- 퀴즈 카드 -->
   <div class="quiz-card">
+    <!-- form 시작 -->
+    <form th:action="@{|/quiz/${quiz.quizId}/submit|}" method="post">
 
-    <!-- 상단 진행 표시 -->
-    <div class="d-flex align-items-center mb-3">
-      <span class="q-index-badge" id="qIdxBadge">1</span>
-      <div class="text-success fw-semibold me-2" id="qNumber">Q1</div>
-      <div class="fs-5 fw-semibold" id="qPrompt">문제 내용</div>
-    </div>
-
-    <!-- 좌/우 네비게이션 -->
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <div class="nav-arrow px-3" id="prevBtn" title="이전">&lsaquo;</div>
-      <div class="nav-arrow px-3" id="nextBtn" title="다음">&rsaquo;</div>
-    </div>
-
-    <!-- 문항 컨테이너들: 서버에서 모두 렌더링하고 JS로 보여줄 것만 표시 -->
-    <div id="questionContainers">
-      <div th:each="item, stat : ${quiz.items}"
-           class="question hidden"
-           th:data-index="${stat.index}"
-           th:data-prompt="${item.prompt}">
-        <label class="choice" th:each="opt, iStat : ${item.options}">
-          <input type="radio"
-                 th:name="|answers[${stat.index}]|"    
-                 th:value="${iStat.index}"> <!-- List<Integer> → 컨트롤러에서 Map으로 바꿔도 name은 그대로 사용 -->
-          <span th:text="${opt}">옵션</span>
-        </label>
+      <!-- 상단 진행 표시 -->
+      <div class="d-flex align-items-center mb-3">
+        <span class="q-index-badge" id="qIdxBadge">1</span>
+        <div class="text-success fw-semibold me-2" id="qNumber">Q1</div>
+        <div class="fs-5 fw-semibold" id="qPrompt">문제 내용</div>
       </div>
-    </div>
 
-    <!-- 페이지 점 -->
-    <div class="d-flex justify-content-center mt-3">
-      <a href="javascript:void(0)"
-         th:each="item, stat : ${quiz.items}"
-         class="page-dot"
-         th:attr="data-index=${stat.index}">
-        <span th:text="${stat.index + 1}">1</span>
-      </a>
-    </div>
+      <!-- 좌/우 네비게이션 -->
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="nav-arrow px-3" id="prevBtn" title="이전">&lsaquo;</div>
+        <div class="nav-arrow px-3" id="nextBtn" title="다음">&rsaquo;</div>
+      </div>
 
-    <!-- 제출 -->
-    <form th:action="@{|/quiz/${quiz.quizId}/submit|}" method="post" id="submitForm" class="text-center mt-4">
-      <button type="submit" class="btn btn-dark px-4 py-2">제출하기</button>
+      <!-- 문항 컨테이너들 -->
+      <div id="questionContainers">
+        <div th:each="item, stat : ${quiz.items}"
+             class="question hidden"
+             th:data-index="${stat.index}"
+             th:data-prompt="${item.prompt}">
+          <label class="choice" th:each="opt, iStat : ${item.options}">
+            <input type="radio"
+                   th:name="|answers[${stat.index}]|"
+                   th:value="${iStat.index}">
+            <span th:text="${opt}">옵션</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 페이지 점 -->
+      <div class="d-flex justify-content-center mt-3">
+        <a href="javascript:void(0)"
+           th:each="item, stat : ${quiz.items}"
+           class="page-dot"
+           th:attr="data-index=${stat.index}">
+          <span th:text="${stat.index + 1}">1</span>
+        </a>
+      </div>
+
+      <!-- 제출 -->
+      <div class="text-center mt-4">
+        <button type="submit" class="btn btn-dark px-4 py-2">제출하기</button>
+      </div>
+
     </form>
+    <!-- form 끝 -->
   </div>
 </main>
 
 <footer th:replace="fragments/footer :: site-footer"></footer>
 
-<!-- JS: 렌더/네비/표시 -->
+<!-- JS -->
 <script th:inline="javascript">
   const TOTAL = /*[[${quiz.items.size()}]]*/ 0;
 
@@ -95,12 +101,12 @@
   function show(idx){
     if (idx < 0 || idx >= TOTAL) return;
 
-    // 모든 문항 숨기고 해당 문항만 노출
+    // 문항 전환
     $questions.forEach(el => el.classList.add('hidden'));
     const $cur = $questions[idx];
     if ($cur) $cur.classList.remove('hidden');
 
-    // 상단 텍스트 갱신 (data-prompt에서 꺼냄)
+    // 상단 텍스트 갱신
     const prompt = $cur ? ($cur.dataset.prompt || '') : '';
     $qIdxBadge.textContent = (idx + 1);
     $qNumber.textContent   = 'Q' + (idx + 1);
@@ -125,10 +131,10 @@
   $prev.addEventListener('click', () => show(current - 1));
   $next.addEventListener('click', () => show(current + 1));
 
-  // 라디오 선택되면 해당 인덱스의 점을 'answered'로 표시
+  // 라디오 선택되면 해당 인덱스의 점 표시
   qsa('input[type=radio]').forEach(r => {
     r.addEventListener('change', () => {
-      const name = r.getAttribute('name');       // answers[3]
+      const name = r.getAttribute('name'); // answers[3]
       const m = name.match(/\[(\d+)\]/);
       if (!m) return;
       const idx = parseInt(m[1], 10);
