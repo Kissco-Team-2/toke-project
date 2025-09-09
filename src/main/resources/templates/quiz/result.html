@@ -22,11 +22,13 @@
     .mark{font-weight:900;font-size:20px}
     .mark.ok{color:var(--ok)}
     .mark.no{color:var(--no)}
-    .opt{display:flex;gap:.6rem;align-items:center;padding:8px 10px;border-radius:10px;border:1px solid #f0f0f0;margin-bottom:8px}
-    .dot{width:10px;height:10px;border-radius:50%;background:#cfd4dc}
+    .opt{display:flex;gap:.6rem;align-items:flex-start;padding:8px 10px;border-radius:10px;border:1px solid #f0f0f0;margin-bottom:8px}
+    .dot{width:10px;height:10px;border-radius:50%;background:#cfd4dc;margin-top:6px}
     .opt.correct .dot{background:var(--ok)}
     .opt.wrong   .dot{background:var(--no)}
     .opt.wrong .picked::after{content:'✔';margin-left:6px;color:var(--no);font-weight:800}
+    .opt-text{line-height:1.35}
+    .opt-ex{color:#6b7280; margin-top:4px; white-space:pre-wrap}
     .hdr{background:var(--pill);border-radius:16px;padding:.6rem 1rem;margin:1rem 0 .75rem}
     .explain{color:var(--muted)}
     footer{display:none}
@@ -85,16 +87,30 @@
 
     <!-- 본문: 선택지 + 해설 -->
     <div class="row g-3">
+      <!-- 선택지 + 각 보기 해설 -->
       <div class="col-md-6">
         <ul class="list-unstyled mb-0">
           <li class="opt"
               th:each="opt, iStat : ${q.options()}"
               th:classappend="${ iStat.index == q.correctIndex() ? ' correct' : ((q.userSelected() != null and iStat.index == q.userSelected()) ? ' wrong' : '') }">
             <span class="dot"></span>
-            <span th:text="${opt}" th:classappend="${q.userSelected() != null and iStat.index == q.userSelected()} ? ' picked' : ''">보기</span>
+            <div class="opt-text">
+              <span th:text="${opt}" th:classappend="${q.userSelected() != null and iStat.index == q.userSelected()} ? ' picked' : ''">보기</span>
+              <!-- ★ 각 보기별 해설 -->
+              <div class="opt-ex small"
+                   th:if="${q.optionExplanations() != null
+                           and q.optionExplanations().size() > iStat.index
+                           and q.optionExplanations().get(iStat.index) != null
+                           and !#strings.isEmpty(q.optionExplanations().get(iStat.index))}"
+                   th:text="${q.optionExplanations().get(iStat.index)}">
+                이 보기의 해설이 여기에 표시됩니다.
+              </div>
+            </div>
           </li>
         </ul>
       </div>
+
+      <!-- 정답 종합 해설 + 예문 -->
       <div class="col-md-6">
         <div class="explain small">
           <div>
@@ -105,14 +121,14 @@
             </span>
           </div>
           <div class="mt-1"
-          			th:text="${q.explain() != null && !#strings.isEmpty(q.explain()) 
-                ? q.explain() 
-                : '해설: 정답을 중심으로 의미 차이를 확인해 보세요.'}">
-   					 해설: 정답을 중심으로 의미 차이를 확인해 보세요.
- 		 </div>
- 		  <div class="mt-1" th:if="${q.exampleSentenceJp() != null && !#strings.isEmpty(q.exampleSentenceJp())}">
-   				 예문: <span th:text="${q.exampleSentenceJp()}"></span>
-  			</div>
+               th:text="${q.explain() != null && !#strings.isEmpty(q.explain())
+                        ? q.explain()
+                        : '해설: 정답을 중심으로 의미 차이를 확인해 보세요.'}">
+            해설: 정답을 중심으로 의미 차이를 확인해 보세요.
+          </div>
+          <div class="mt-1" th:if="${q.exampleSentenceJp() != null && !#strings.isEmpty(q.exampleSentenceJp())}">
+            예문: <span th:text="${q.exampleSentenceJp()}"></span>
+          </div>
         </div>
       </div>
     </div>

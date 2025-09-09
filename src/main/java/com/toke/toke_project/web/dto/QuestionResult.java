@@ -9,6 +9,7 @@ public record QuestionResult(
     Integer userSelected, // null 가능
     int correctIndex,
     boolean isCorrect,
-    String explain,
-    String exampleSentenceJp
+    String explain,              // 정답 전체 해설
+    String exampleSentenceJp,    // 예문
+    List<String> optionExplanations // ★ 각 선지별 해설 (options와 동일 길이)
 ) {}

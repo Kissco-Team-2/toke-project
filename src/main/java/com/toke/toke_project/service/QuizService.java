@@ -255,21 +255,20 @@ public class QuizService {
             r.setUserAnswer((pick == null || pick < 0 || pick > 3) ? null : indexToKey(pick));
             r.setIsCorrect(isCorrect ? "Y" : "N");
             r.setCreatedAt(LocalDateTime.now());
-            quizResultService.saveResult(r); // ★ 이걸로 저장 (직접 repo.save 금지)
+            quizResultService.saveResult(r); // ★ 저장
 
-            // ---- 해설/예문 채우기 ----
-            String explain = null;
-            String ex = null;
+            // ---- 정답 해설/예문 채우기 ----
+            String explain;
+            String ex;
 
-            // 1) 우선 Quiz.word 참조(위 A 패치가 있어야 정확)
+            // Quiz -> Word 추적
             Word w = null;
             Optional<Quiz> oq = quizRepo.findById(q.quizId());
             if (oq.isPresent()) w = oq.get().getWord();
 
-            // 2) 보강: 못 찾았으면 정답 텍스트로 Word 역추적
             final String correctText = q.options().get(q.answerIndex());
             if (w == null) {
-                w = wordRepo.findByJapaneseOrKorean(correctText).orElse(null);
+            	w = wordRepo.findAnyByJapaneseOrKorean(correctText).orElse(null);
             }
 
             if (w != null) {
@@ -283,7 +282,11 @@ public class QuizService {
                 ex = w.getExampleSentenceJp();
             } else {
                 explain = "해설: 정답을 중심으로 의미 차이를 확인해 보세요.";
+                ex = null;
             }
+
+            // ---- ★ 각 선지별 해설 생성 ----
+            List<String> optionExplanations = buildOptionExplanations(paper.mode(), q.options(), q.answerIndex());
 
             results.add(new QuestionResult(
                     i,
@@ -293,15 +296,66 @@ public class QuizService {
                     q.answerIndex(),
                     isCorrect,
                     explain,
-                    ex
+                    ex,
+                    optionExplanations // ★ 추가
             ));
         }
 
         return new GradeResponse(total, correctCount, results);
     }
 
-    private static String ns(String s){ return s==null? "" : s; }
+    /* ===== 각 보기별 해설 생성 ===== */
+    private List<String> buildOptionExplanations(QuestionMode mode, List<String> options, int correctIndex) {
+        List<String> list = new ArrayList<>(options.size());
+        for (int i = 0; i < options.size(); i++) {
+            String opt = options.get(i);
+            String msg;
 
+            // DB에서 해당 보기 텍스트로 Word 추적 시도
+            Word w = wordRepo.findAnyByJapaneseOrKorean(opt).orElse(null);
+
+            if (mode == QuestionMode.JP_TO_KR) {
+                // 보기 = 한국어 뜻
+                if (i == correctIndex) {
+                    if (w != null) {
+                        msg = String.format("정답: '%s'(%s)의 뜻이 바로 '%s'입니다.",
+                                ns(w.getJapaneseWord()), ns(w.getReadingKana()), ns(w.getKoreanMeaning()));
+                    } else {
+                        msg = "정답 의미입니다.";
+                    }
+                } else {
+                    if (w != null) {
+                        msg = String.format("'%s'(%s)의 뜻이 '%s'이므로, 이번 문제의 정답 의미와는 다릅니다.",
+                                ns(w.getJapaneseWord()), ns(w.getReadingKana()), ns(w.getKoreanMeaning()));
+                    } else {
+                        msg = "의미가 유사해 보일 수 있지만, 문맥과 정확한 대응이 다릅니다.";
+                    }
+                }
+            } else { // KR_TO_JP
+                // 보기 = 일본어 표기
+                if (i == correctIndex) {
+                    if (w != null) {
+                        msg = String.format("정답: 한국어 '%s'에 해당하는 일본어가 '%s'(%s)입니다.",
+                                ns(w.getKoreanMeaning()), ns(w.getJapaneseWord()), ns(w.getReadingKana()));
+                    } else {
+                        msg = "정답 일본어 표기입니다.";
+                    }
+                } else {
+                    if (w != null) {
+                        msg = String.format("'%s'(%s)는 '%s'의 의미로, 이번 문제의 한국어 뜻과는 일치하지 않습니다.",
+                                ns(w.getJapaneseWord()), ns(w.getReadingKana()), ns(w.getKoreanMeaning()));
+                    } else {
+                        msg = "형태가 비슷하지만 의미가 다릅니다.";
+                    }
+                }
+            }
+
+            list.add(msg);
+        }
+        return list;
+    }
+
+    private static String ns(String s){ return s==null? "" : s; }
 
     /* -------------------- 내부 유틸: buildOptions, indexToKey, normalizeCategory... -------------------- */
     private List<String> buildOptions(String category, Word target, QuestionMode mode, String correctText) {
@@ -346,9 +400,8 @@ public class QuizService {
     private boolean isAllCategory(String s) {
         return s == null || s.isBlank() || "전체".equals(s);
     }
-    
+
     @Transactional(readOnly = true)
-    // in QuizService
     public QuizView getViewByUuid(String uuid) {
         var paper = quizCache.getIfPresent(uuid);
         if (paper == null) throw new org.springframework.web.server.ResponseStatusException(

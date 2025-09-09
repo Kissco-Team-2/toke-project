@@ -1,7 +1,6 @@
 package com.toke.toke_project.repo;
 
 import com.toke.toke_project.domain.Word;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
@@ -14,45 +13,49 @@ import java.util.Optional;
 @Repository
 public interface WordRepository extends JpaRepository<Word, Long> {
 
-	@Query("""
-			SELECT w FROM Word w
-			WHERE (:q IS NULL OR :q = ''
-			       OR LOWER(w.japaneseWord)   LIKE LOWER(CONCAT('%', :q, '%'))
-			       OR LOWER(w.readingKana)    LIKE LOWER(CONCAT('%', :q, '%'))
-			       OR LOWER(w.koreanMeaning)  LIKE LOWER(CONCAT('%', :q, '%')))
-			  AND (:category IS NULL OR :category = '' OR w.category = :category)
-			""")
-	Page<Word> search(@Param("q") String q, @Param("category") String category, Pageable pageable);
+    /* ====================== 검색(목록) ====================== */
+    @Query("""
+            SELECT w FROM Word w
+            WHERE (:q IS NULL OR :q = ''
+                   OR LOWER(w.japaneseWord)  LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(w.readingKana)   LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(w.koreanMeaning) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (:category IS NULL OR :category = '' OR w.category = :category)
+            """)
+    Page<Word> search(@Param("q") String q, @Param("category") String category, Pageable pageable);
 
-	// koGroup 필터
-	@Query("""
-			  SELECT w FROM Word w
-			  WHERE (:q IS NULL OR :q = ''
-			         OR LOWER(w.japaneseWord) LIKE LOWER(CONCAT('%', :q, '%'))
-			         OR LOWER(w.readingKana) LIKE LOWER(CONCAT('%', :q, '%'))
-			         OR LOWER(w.koreanMeaning) LIKE LOWER(CONCAT('%', :q, '%')))
-			    AND (:category IS NULL OR :category = '' OR w.category = :category)
-			    AND w.koGroup = :group
-			""")
-	Page<Word> findByKoGroupStartingWithAndCategoryContainingAndKeyword(@Param("q") String q,
-			@Param("category") String category, @Param("group") String group, Pageable pageable);
+    // koGroup 필터
+    @Query("""
+              SELECT w FROM Word w
+              WHERE (:q IS NULL OR :q = ''
+                     OR LOWER(w.japaneseWord)  LIKE LOWER(CONCAT('%', :q, '%'))
+                     OR LOWER(w.readingKana)   LIKE LOWER(CONCAT('%', :q, '%'))
+                     OR LOWER(w.koreanMeaning) LIKE LOWER(CONCAT('%', :q, '%')))
+                AND (:category IS NULL OR :category = '' OR w.category = :category)
+                AND w.koGroup = :group
+            """)
+    Page<Word> findByKoGroupStartingWithAndCategoryContainingAndKeyword(@Param("q") String q,
+                                                                        @Param("category") String category,
+                                                                        @Param("group") String group,
+                                                                        Pageable pageable);
 
-	// jaGroup 필터
-	@Query("""
-			  SELECT w FROM Word w
-			  WHERE (:q IS NULL OR :q = ''
-			         OR LOWER(w.japaneseWord) LIKE LOWER(CONCAT('%', :q, '%'))
-			         OR LOWER(w.readingKana) LIKE LOWER(CONCAT('%', :q, '%'))
-			         OR LOWER(w.koreanMeaning) LIKE LOWER(CONCAT('%', :q, '%')))
-			    AND (:category IS NULL OR :category = '' OR w.category = :category)
-			    AND w.jaGroup = :group
-			""")
-	Page<Word> findByJaGroupStartingWithAndCategoryContainingAndKeyword(@Param("q") String q,
-			@Param("category") String category, @Param("group") String group, Pageable pageable);
+    // jaGroup 필터
+    @Query("""
+              SELECT w FROM Word w
+              WHERE (:q IS NULL OR :q = ''
+                     OR LOWER(w.japaneseWord)  LIKE LOWER(CONCAT('%', :q, '%'))
+                     OR LOWER(w.readingKana)   LIKE LOWER(CONCAT('%', :q, '%'))
+                     OR LOWER(w.koreanMeaning) LIKE LOWER(CONCAT('%', :q, '%')))
+                AND (:category IS NULL OR :category = '' OR w.category = :category)
+                AND w.jaGroup = :group
+            """)
+    Page<Word> findByJaGroupStartingWithAndCategoryContainingAndKeyword(@Param("q") String q,
+                                                                        @Param("category") String category,
+                                                                        @Param("group") String group,
+                                                                        Pageable pageable);
 
-	
-	//퀴즈 관련
-	 /** 전체에서 임의 N개(Oracle) */
+    /* ====================== 퀴즈 랜덤 픽 ====================== */
+    /** 전체에서 임의 N개(Oracle) */
     @Query(value = """
         SELECT * FROM (
           SELECT * FROM word
@@ -104,15 +107,29 @@ public interface WordRepository extends JpaRepository<Word, Long> {
             @Param("category") String category,
             @Param("excludeId") Long excludeId,
             @Param("limit") int limit);
-    
-    
-    
-   //오답노트 
-    Optional<Word> findByJapaneseWord(String japaneseWord);
-    Optional<Word> findByKoreanMeaning(String koreanMeaning);
 
-    // 편의용: 둘 중 하나 매칭되는 것 찾기
+    /* ====================== 안전한 단건 조회(중복 허용) ====================== */
+    // 중복 가능하므로 Optional<Word> 대신 List<Word>로 받는다.
+    List<Word> findByJapaneseWord(String japaneseWord);
+    List<Word> findByKoreanMeaning(String koreanMeaning);
+
+    // OR 조건 다건 조회 (정렬 기준은 필요에 맞게 변경 가능)
+    @Query("""
+           select w
+           from Word w
+           where w.japaneseWord = :text or w.koreanMeaning = :text
+           order by w.id asc
+           """)
+    List<Word> findAllByJapaneseOrKorean(@Param("text") String text);
+
+    /** 아무거나 1개만 Optional로 (중복 존재해도 안전) */
+    default Optional<Word> findAnyByJapaneseOrKorean(String text) {
+        List<Word> list = findAllByJapaneseOrKorean(text);
+        return (list == null || list.isEmpty()) ? Optional.empty() : Optional.of(list.get(0));
+    }
+
+    /** 호환용: 기존 이름 유지. 내부적으로 안전 메서드 사용 */
     default Optional<Word> findByJapaneseOrKorean(String text) {
-        return findByJapaneseWord(text).or(() -> findByKoreanMeaning(text));
+        return findAnyByJapaneseOrKorean(text);
     }
 }
