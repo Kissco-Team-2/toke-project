@@ -1,0 +1,94 @@
+<div th:fragment="edit_mywords_modal">
+	<style>
+.btn-soft-green {
+	background: #caf7cf;
+	color: #000;
+	border: 0;
+	font-weight: 600;
+}
+
+.btn-soft-green:hover {
+	background: #bfe3ce;
+	color: #0f5132;
+}
+
+.btn-black {
+	background: #000;
+	color: #fff;
+}
+
+.btn-black:hover {
+	background: #111;
+	color: #fff;
+}
+
+.tab-btn {
+	flex: 1;
+	background: #ddd;
+	color: #333;
+	font-weight: 600;
+	border: 0;
+	border-radius: 6px;
+	padding: 0.5rem 1rem;
+}
+
+.tab-btn.active {
+	background: #000;
+	color: #fff;
+}
+
+.tab-content {
+	margin-top: 1rem;
+}
+
+.form-control::placeholder {
+	color: #dddddd;
+	opacity: 1;
+	font-size: 1rem;
+}
+</style>
+
+<div class="modal fade" id="edit_mywords_modal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content p-4" style="border-radius: 16px; width: 640px; height: 630px;">
+				<div class="modal-header border-0 d-flex justify-content-center position-relative">
+					<h5 class="modal-title fw-bold">표현 수정</h5>
+					<button type="button" class="btn-close position-absolute end-0" style="margin-right: 2rem;" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body row justify-content-center">
+					<form class="mt-3" id="editWordForm" method="post">
+						<div class="mb-4 align-items-center">
+							<label class="col-sm-3 col-form-label req fw-bold">일본어 표현</label>
+								<div class="col-12">
+							<input type="text" name="jp" id="editJp" class="form-control">
+							</div>
+						</div>
+						<div class="mb-4 align-items-center">
+							<label class="col-sm-3 col-form-label req fw-bold">히라가나 발음</label>
+							<div class="col-12">
+							<input type="text" name="kana" id="editKana" class="form-control">
+							</div>
+						</div>
+						<div class="mb-4">
+							<label class="col-sm-3 col-form-label req fw-bold">한국어 뜻</label>
+							<input type="text" name="kr" id="editKr" class="form-control">
+						</div>
+						<div class="mb-4">
+							<label class="col-sm-3 col-form-label req fw-bold">예문</label>
+							<input type="text" name="ex" id="editEx" class="form-control">
+						</div>
+
+						<div class="row g-3 mt-4">
+							<div class="col-6 d-grid">
+								<button type="submit" class="btn btn-soft-green py-2">수정</button>
+							</div>
+							<div class="col-6 d-grid">
+								<button type="button" class="btn btn-black py-2" data-bs-dismiss="modal">취소</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

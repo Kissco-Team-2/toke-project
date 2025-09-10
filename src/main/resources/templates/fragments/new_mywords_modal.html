@@ -1,0 +1,122 @@
+<div th:fragment="new_mywords_modal">
+	<style>
+.btn-soft-green {
+	background: #caf7cf;
+	color: #000;
+	border: 0;
+	font-weight: 600;
+}
+
+.btn-soft-green:hover {
+	background: #bfe3ce;
+	color: #0f5132;
+}
+
+.btn-black {
+	background: #000;
+	color: #fff;
+}
+
+.btn-black:hover {
+	background: #111;
+	color: #fff;
+}
+
+.tab-btn {
+	flex: 1;
+	background: #ddd;
+	color: #333;
+	font-weight: 600;
+	border: 0;
+	border-radius: 6px;
+	padding: 0.5rem 1rem;
+}
+
+.tab-btn.active {
+	background: #000;
+	color: #fff;
+}
+
+.tab-content {
+	margin-top: 1rem;
+}
+
+.form-control::placeholder {
+	color: #dddddd;
+	opacity: 1;
+	font-size: 1rem;
+}
+</style>
+
+	<div class="modal fade" id="new_mywords_modal" tabindex="-1"
+		aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content p-4"
+				style="border-radius: 16px; width: 500px; height: 630px;">
+				<div
+					class="modal-header border-0 d-flex justify-content-center position-relative">
+					<h5 class="modal-title fw-bold">새 표현 추가</h5>
+					<button type="button" class="btn-close position-absolute end-0"
+						style="margin-right: 2rem;" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body row justify-content-center">
+					<form class="mt-3"
+						th:action="@{/lists/{id}/items/addCustom(id=${list.id})}"
+						th:object="${customWordForm}" method="post">
+						<div class="mb-4 align-items-center">
+							<label for="customJapaneseWord"
+								class="col-sm-3 col-form-label req fw-bold">일본어 표현</label>
+							<div class="col-12">
+								<input type="text" th:field="*{jp}" class="form-control"
+									placeholder="일본어 표현 입력">
+								<div class="text-danger" th:if="${#fields.hasErrors('jp')}"
+									th:errors="*{jp}"></div>
+
+							</div>
+						</div>
+						<div class="mb-4 align-items-center">
+							<label for="customReadingKana"
+								class="col-sm-3 col-form-label req fw-bold">히라가나 발음</label>
+							<div class="col-12">
+								<input type="text" th:field="*{kana}" class="form-control"
+									placeholder="히라가나 발음 입력">
+								<div class="text-danger" th:if="${#fields.hasErrors('kana')}"
+									th:errors="*{kana}"></div>
+							</div>
+						</div>
+						<div class="mb-4 align-items-center">
+							<label for="customKoreanMeaning"
+								class="col-sm-3 col-form-label req fw-bold">한국어 뜻</label>
+							<div class="col-12">
+								<input type="text" th:field="*{kr}" class="form-control"
+									placeholder="한국어 뜻 입력">
+								<div class="text-danger" th:if="${#fields.hasErrors('kr')}"
+									th:errors="*{kr}"></div>
+							</div>
+						</div>
+						<div class="mb-4 align-items-center">
+							<label for="customExampleSentenceJp"
+								class="col-sm-3 col-form-label req fw-bold">예문</label>
+							<div class="col-12">
+								<input type="text" th:field="*{ex}" class="form-control"
+									placeholder="예문 입력">
+								<div class="text-danger" th:if="${#fields.hasErrors('ex')}"
+									th:errors="*{ex}"></div>
+							</div>
+						</div>
+
+						<div class="row g-3" style="margin-top: 1.8rem;">
+							<div class="col-6 d-grid">
+								<button type="submit" class="btn btn-soft-green py-2">추가</button>
+							</div>
+							<div class="col-6 d-grid">
+								<a th:href="@{/lists/{id}(id=${list.id})}"
+									class="btn btn-black py-2">취소</a>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

@@ -46,9 +46,14 @@ public class SecurityConfig {
 	          .requestMatchers(HttpMethod.POST, "/qna/*/close").authenticated()
 	          .requestMatchers(HttpMethod.POST, "/qna/*/reply").hasRole("ADMIN")
 
-	          // --- 모두의 단어장(리스트 기능은 공개) ---
-	          .requestMatchers(HttpMethod.GET, "/lists", "/lists/*", "/lists/search").permitAll()
-	          .requestMatchers("/lists/**").authenticated()  // mine/편집/삭제 등은 로그인
+
+						// --- 모두의 단어장 ---
+						.requestMatchers(HttpMethod.GET, "/lists", "/lists/*").authenticated()  // 인증된 사용자만 접근
+			            .requestMatchers("/lists/search").authenticated()  // 검색도 인증된 사용자만 접근
+						
+						 // --- 오답노트 ---
+					    .requestMatchers("/wrong-notes/**").authenticated()
+
 
 	          // --- 단어장/표현 목록 보기·검색 (여기가 빠져서 다 막혔던 부분) ---
 	          .requestMatchers(HttpMethod.GET, "/words", "/words/**").permitAll()
@@ -66,26 +71,24 @@ public class SecurityConfig {
 	          .requestMatchers("/wrong-notes/**").authenticated()
 	          .requestMatchers("/api/wrong-notes/**").authenticated()
 
-	          // --- 관리자 ---
+	       // --- 관리자 ---
 	          .requestMatchers("/admin/**").hasRole("ADMIN")
+	          
+					// 그 외 전부 인증
+						.anyRequest().authenticated())
+						.formLogin(login -> login.loginPage("/login")
+						.loginProcessingUrl("/login")
+						.usernameParameter("email")
+						.passwordParameter("password")
+						.defaultSuccessUrl("/lists/search", false)
+						.failureUrl("/login?error=true")
+						.permitAll())
+						
+						
+						.logout(logout -> logout
+						.logoutUrl("/logout")
+						.logoutSuccessUrl("/login?logout=true").permitAll());
 
-	          // 그 외 전부 인증
-	          .anyRequest().authenticated()
-	      )
-	      .formLogin(login -> login
-	          .loginPage("/login")
-	          .loginProcessingUrl("/login")
-	          .usernameParameter("email")
-	          .passwordParameter("password")
-	          .defaultSuccessUrl("/", false)
-	          .failureUrl("/login?error=true")
-	          .permitAll()
-	      )
-	      .logout(logout -> logout
-	          .logoutUrl("/logout")
-	          .logoutSuccessUrl("/login?logout=true")
-	          .permitAll()
-	      );
 
 	    return http.build();
 	}

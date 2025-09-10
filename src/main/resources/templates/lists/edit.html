@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>단어장 수정</title>
+<link
+	href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+	rel="stylesheet" />
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<style>
+body {
+	background: #f7f7f7;
+}
+
+.form-control::placeholder {
+	color: #c0c0c0;
+	font-size: 0.8rem;
+	opacity: 1;
+}
+
+.card-soft {
+	border: 0;
+	border-radius: 12px;
+	background: #fff;
+	box-shadow: 0 10px 24px rgba(0, 0, 0, .06);
+}
+
+.btn-soft-green {
+	background: #caf7cf;
+	color: #000;
+	border: 0;
+	font-weight: 600;
+}
+
+.btn-soft-green:hover {
+	background: #bfe3ce;
+	color: #0f5132;
+}
+
+.btn-black {
+	background: #000;
+	color: #fff;
+	border: 0;
+	font-weight: 600;
+}
+
+.btn-black:hover {
+	background: #111;
+	color: #fff;
+}
+
+/* 태그 버튼의 active 스타일 (Bootstrap 기본과 비슷하지만 톤 조정) */
+.btn-tag.active {
+	background-color: #000;
+	color: #fff;
+	border-color: #000;
+}
+
+.btn-tag {
+	white-space: nowrap;
+	border-color: #bfbfbf;
+}
+
+.selected-tags {
+	min-height: 1.2rem;
+}
+
+.form-label {
+	font-size: 0.9rem;
+	font-weight: 600;
+}
+</style>
+<body class="d-flex flex-column min-vh-100" style="margin: 0;">
+	<header th:replace="fragments/header :: site-header"></header>
+	<main class="flex-grow-1">
+		<div class="container p-5">
+			<div class="row justify-content-center">
+				<div class="card card-soft"
+					style="width: 670px; height: 590px; padding: 24px;">
+					<div class="card-body">
+						<h3 class="text-center fw-bold">단어장 수정</h3>
+						<form th:action="@{|/lists/${list.id}/edit|}" method="post"
+							class="needs-validation" novalidate>
+							<input type="hidden" th:if="${_csrf!=null}"
+								th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+							<!-- 히든 필드: 선택된 태그들이 콤마로 구분되어 들어감 -->
+							<input type="hidden" id="tagsHidden" name="tags"
+								th:value="${tags}" />
+
+							<div class="mb-3">
+								<label for="listName" class="form-label">단어장 이름<span
+									class="text-danger">*</span></label> 
+									<input id="listName"
+									name="listName" type="text" class="form-control"
+									th:value="${list.listName}" required>
+								<div class="invalid-feedback">단어장 이름을 입력하세요.</div>
+							</div>
+
+							<div class="mb-3">
+								<label for="description" class="form-label mt-2">설명 (선택)</label>
+								<textarea id="description" name="description"
+									class="form-control mb-2" style="height: 150px;"
+									th:value="${list.description}"></textarea>
+							</div>
+
+							<!-- ===== 해시태그 토글 버튼 그룹 ===== -->
+							<div class="mb-3 pt-1">
+								<label class="form-label d-block mt-2">해시태그 (중복 선택 가능)</label>
+
+								<!-- 버튼 그룹: 각 버튼은 data-value에 태그 원문을 가짐 -->
+								<div class="d-flex flex-wrap gap-2 mb-2" id="tagButtonGroup"
+									role="group" aria-label="해시태그">
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="고객대응"
+										th:classappend="${#lists.contains(listTags, '고객대응')} ? ' active'">고객
+										대응</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="메일"
+										th:classappend="${#lists.contains(listTags, '메일')} ? ' active'">메일</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="보고"
+										th:classappend="${#lists.contains(listTags, '보고')} ? ' active'">보고</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="인사"
+										th:classappend="${#lists.contains(listTags, '인사')} ? ' active'">인사</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="전화"
+										th:classappend="${#lists.contains(listTags, '전화')} ? ' active'">전화</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="제안"
+										th:classappend="${#lists.contains(listTags, '제안')} ? ' active'">제안</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="회의"
+										th:classappend="${#lists.contains(listTags, '회의')} ? ' active'">회의</button>
+								</div>
+
+
+								<!-- 선택된 태그 미리보기 (간단 UI) -->
+								<div class="selected-tags text-muted small mb-2"
+									id="selectedTagsPreview">선택된 태그가 없습니다.</div>
+
+							</div>
+
+							<div class="row g-3" style="margin-top: 0.3rem;">
+								<div class="col-6 d-grid">
+									<button type="submit" class="btn btn-soft-green py-2">단어장
+										수정</button>
+								</div>
+								<div class="col-6 d-grid">
+									<a class="btn btn-black py-2" th:href="@{|/lists/${list.id}|}">취소</a>
+								</div>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+
+
+	</main>
+	<footer th:replace="fragments/footer :: site-footer"
+		class="mt-auto bg-dark text-white"
+		style="margin-top: 0; padding-top: 0; background: #000;"></footer>
+
+	<script
+		src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+	<script>
+		// bootstrap form validation (기존)
+		(function() {
+			'use strict'
+			var forms = document.querySelectorAll('.needs-validation')
+			Array.prototype.slice.call(forms).forEach(function(form) {
+				form.addEventListener('submit', function(event) {
+					// 제출 직전에 히든 태그 값을 최신화 (안전장치)
+					updateHiddenTags();
+
+					if (!form.checkValidity()) {
+						event.preventDefault()
+						event.stopPropagation()
+					}
+					form.classList.add('was-validated')
+				}, false)
+			})
+		})();
+
+		// ===== 해시태그 토글 로직 =====
+		(function(){
+			const group = document.getElementById('tagButtonGroup');
+			const hidden = document.getElementById('tagsHidden');
+			const preview = document.getElementById('selectedTagsPreview');
+
+			function getActiveValues() {
+				return Array.from(group.querySelectorAll('.btn-tag.active'))
+					.map(b => b.getAttribute('data-value'));
+			}
+
+			function updateHiddenTags() {
+				const vals = getActiveValues();
+				hidden.value = vals.join(',');
+				preview.textContent = vals.length ? vals.join(', ') : '선택된 태그가 없습니다.';
+			}
+
+			// 토글 이벤트 바인딩 (버튼 클릭 시 active 토글)
+			group.addEventListener('click', function(e){
+				const btn = e.target.closest('.btn-tag');
+				if (!btn) return;
+				btn.classList.toggle('active');
+				// accessibility: aria-pressed 반전
+				const pressed = btn.getAttribute('aria-pressed') === 'true';
+				btn.setAttribute('aria-pressed', String(!pressed));
+				updateHiddenTags();
+			});
+
+			// 초기화: (필요하면 서버에서 전달된 기존 태그로 활성화 가능)
+			updateHiddenTags();
+
+			// 외부에서 호출 가능하도록 전역에 노출 (디버깅/테스트용)
+			window.updateHiddenTags = updateHiddenTags;
+		})();
+	</script>
+</body>
+</html>

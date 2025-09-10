@@ -110,7 +110,7 @@ body {
 			</div>
 		</div>
 	</main>
-	<footer th:replace="fragments/footer :: site-footer"></footer>
+	
 	<div th:replace="fragments/find_account_modal :: findAccountModal"></div>
 	<div
 		th:replace="fragments/find_email_result_modal :: findEmailResultModal"></div>
@@ -120,6 +120,8 @@ body {
 		th:replace="fragments/find_password_reset_modal :: findPasswordResetModal"></div>
 	<div
 		th:replace="fragments/reset_password_success_modal :: resetPasswordSuccessModal"></div>
+		
+		<footer th:replace="fragments/footer :: site-footer"></footer>
 
 	<script th:inline="javascript">
 		document.addEventListener('DOMContentLoaded', function() {
