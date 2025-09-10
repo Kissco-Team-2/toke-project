@@ -3,9 +3,13 @@ package com.toke.toke_project.web;
 import com.toke.toke_project.domain.Users;
 import com.toke.toke_project.domain.WordList;
 import com.toke.toke_project.service.WordListService;
+import com.toke.toke_project.web.dto.CustomWordForm;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,15 +90,17 @@ public class WordListController {
 	// --- 상세 (공개) ---
 	@GetMapping("/{id}")
 	public String detail(@PathVariable Long id, Model model) {
-		var map = wordListService.getDetail(id);
-		model.addAttribute("list", map.get("list"));
-		model.addAttribute("items", map.get("items"));
+	    var map = wordListService.getDetail(id);
+	    WordList wl = (WordList) map.get("list");
 
-		// 템플릿에서 태그 문자열 목록을 기대하면 WordListService에서 가공하거나
-		// 여기서 간단히 뽑아서 전달할 수도 있음 (필요 시 활성화)
-		// model.addAttribute("listTags", ...);
+	    // 단어장 정보와 아이템 목록
+	    model.addAttribute("list", map.get("list"));
+	    model.addAttribute("items", map.get("items"));
+	    model.addAttribute("listTags", wl.getTags()); 
+	    model.addAttribute("customWordForm", new CustomWordForm());
+	    
 
-		return "lists/detail";
+	    return "lists/detail";  // detail.html에서 modal 포함
 	}
 
 	// --- 수정(제목/설명/태그) (소유자만) ---
@@ -130,13 +136,30 @@ public class WordListController {
 
 	// --- 아이템 추가(커스텀) ---
 	@PostMapping("/{id}/items/addCustom")
-	public String addCustomItem(@PathVariable Long id, Principal principal, @RequestParam String jp,
-			@RequestParam(required = false) String kana, @RequestParam(required = false) String kr,
-			@RequestParam(required = false) String ex) {
+	public String addCustomItem(
+			@PathVariable Long id, 
+			Principal principal, 
+			@Valid @ModelAttribute("customWordForm") CustomWordForm form,
+			BindingResult bindingResult,
+			Model model
+			) {
+		
 		if (principal == null)
 			return "redirect:/login";
+		
 		Long me = currentUserId(principal);
-		wordListService.addCustomItem(id, me, jp, kana, kr, ex);
+		
+		if(bindingResult.hasErrors()) {
+			 var map = wordListService.getDetail(id);
+			 WordList wl = (WordList) map.get("list");
+
+		        model.addAttribute("list", map.get("list"));
+		        model.addAttribute("items", map.get("items"));
+		        model.addAttribute("listTags", wl.getTags());
+		        model.addAttribute("customWordForm", form); 
+			return "lists/detail";
+		}
+		wordListService.addCustomItem(id, me, form.getJp(), form.getKana(), form.getKr(), form.getEx());
 		return "redirect:/lists/" + id;
 	}
 
