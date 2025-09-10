@@ -72,9 +72,10 @@ public class WordListService {
 		WordList wl = wordListRepo.findById(listId).orElseThrow();
 		if (!wl.getOwner().getId().equals(ownerId))
 			throw new SecurityException("권한 없음");
-		wltRepo.deleteByListId(listId);
+
+		wl.getTags().clear(); // 중간 테이블 clean
 		itemRepo.deleteByWordList_Id(listId);
-		wordListRepo.deleteById(listId);
+		wordListRepo.delete(wl);
 	}
 
 	/* 공식 단어 추가 */
@@ -120,32 +121,30 @@ public class WordListService {
 		itemRepo.save(it);
 		return it.getId();
 	}
-	
+
 	@Transactional
 	public Long addItemAsCustomCopy(Long listId, Long ownerId, Long wordId) {
-	    WordList wl = wordListRepo.findById(listId).orElseThrow();
-	    if (!wl.getOwner().getId().equals(ownerId)) {
-	        throw new SecurityException("권한 없음");
-	    }
-	    Word w = wordRepo.findById(wordId).orElseThrow();
+		WordList wl = wordListRepo.findById(listId).orElseThrow();
+		if (!wl.getOwner().getId().equals(ownerId)) {
+			throw new SecurityException("권한 없음");
+		}
+		Word w = wordRepo.findById(wordId).orElseThrow();
 
-	    WordListItem it = new WordListItem();
-	    it.setWordList(wl);
+		WordListItem it = new WordListItem();
+		it.setWordList(wl);
 
-	    // 공식 단어 내용을 커스텀 필드로 복사
-	    it.setCustomJapaneseWord(w.getJapaneseWord());
-	    it.setCustomReadingKana(w.getReadingKana());
-	    it.setCustomKoreanMeaning(w.getKoreanMeaning());
-	    it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
+		// 공식 단어 내용을 커스텀 필드로 복사
+		it.setCustomJapaneseWord(w.getJapaneseWord());
+		it.setCustomReadingKana(w.getReadingKana());
+		it.setCustomKoreanMeaning(w.getKoreanMeaning());
+		it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
 
-	    // Word 참조는 null 처리 (공식 연결 안 함)
-	    it.setWord(null);
+		// Word 참조는 null 처리 (공식 연결 안 함)
+		it.setWord(null);
 
-	    itemRepo.save(it);
-	    return it.getId();
+		itemRepo.save(it);
+		return it.getId();
 	}
-
-	
 
 	/* 항목 삭제(본인만) */
 	@Transactional

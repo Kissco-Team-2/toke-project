@@ -10,7 +10,6 @@
 <link rel="stylesheet" href="/css/style.css">
 <style>
 body {
-	background: #fffefe;
 	font-family: 'Pretendard', sans-serif;
 }
 
@@ -111,98 +110,85 @@ ul {
 			<div class="tags d-flex justify-content-end">
 
 				<div class="small">
+					<!-- 본인 소유일 경우만 노출 -->
+					<div th:if="${me != null and me == list.owner.id}"
+						class="d-flex gap-2">
+						
+						<!-- 수정 버튼 (모달 띄우기 or edit 페이지로 이동) -->
+						<a th:href="@{|/lists/${list.id}/edit|}"
+							class="btn btn-outline">단어장 수정</a>
 
-					<button type="button" class="btn btn-soft-green"
-						data-bs-toggle="modal" data-bs-target="#new_mywords_modal"
-						style="margin-right: .8rem;">새 표현 추가</button>
+						<!-- 삭제 버튼 (폼으로 POST) -->
+						<form th:action="@{|/lists/${list.id}/delete|}" method="post"
+							onsubmit="return confirm('정말 삭제하시겠습니까?');" class="d-inline">
+							<button type="submit" class="btn btn-outline">단어장
+								삭제</button>
+						</form>
+
+
+						<button type="button" class="btn btn-soft-green"
+							data-bs-toggle="modal" data-bs-target="#new_mywords_modal"
+							style="margin-right: .8rem;">새 표현 추가</button>
+					</div>
 				</div>
+
 			</div>
+		</div>
+
+		<div class="container p-2">
+			<div class="p-2">
+
+				<div th:if="${#lists.isEmpty(items)}"
+					class="text-center text-muted my-4">목록에 추가된 표현이 없습니다.</div>
 
 
-			<!-- 정렬 탭 -->
-			<!-- 	<div class="container" style="padding: 20px;">
-				<div class="d-flex gap-2 mb-3">
-					<a th:href="@{/words(mode='ko', q=${q}, category=${category})}"
-						class="tab-btn" th:classappend="${mode=='ko'}? ' active'">가나다순</a>
-					<a th:href="@{/words(mode='ja', q=${q}, category=${category})}"
-						class="tab-btn" th:classappend="${mode=='ja'}? ' active'">히라가나순</a>
-					<a th:href="@{/words(mode='cat', q=${q})}" class="tab-btn"
-						th:classappend="${mode=='cat'}? ' active'">카테고리별</a> <a
-						th:href="@{/words(mode='recent', q=${q}, category=${category})}"
-						class="tab-btn" th:classappend="${mode=='recent'}? ' active'">최근
-						등록순</a>
-				</div> -->
+				<div th:each="w, iterStat : ${items}" class="word-box">
+					<ul class="accordion">
+						<li class="accordion__li">
+							<!-- 클릭 버튼 -->
+							<div class="accordion__title toggle-accordion">
+								<span th:text="${w.word?.japaneseWord ?: w.customJapaneseWord}">
+									ご連絡ありがとうございます。 </span> <span
+									th:text="${w.word?.readingKana ?: w.customReadingKana}">
+									ごれんらくありがとうございます。 </span>
+							</div> <!-- 아코디언 내용 -->
+							<div class="accordion__content">
+								<p>
+									<b style="color: #6155F5;">[한국어 뜻]</b> <span
+										th:text="${w.word?.koreanMeaning ?: w.customKoreanMeaning}">>연락
+										감사합니다.</span>
+								</p>
+								<p>
+									<b style="color: #6155F5;">[예문]</b> <span
+										th:text="${w.word?.exampleSentenceJp ?: w.customExampleSentenceJp}">送っていただいた資料を確認しました。</span>
+								</p>
 
-			<div class="container p-2">
-				<!-- 한글 인덱스: 가나다순 모드일 때만 -->
-				<div th:if="${mode == 'ko'}" class="hangeul-index mb-3">
-					<a th:each="g : ${'가,나,다,라,마,바,사,아,자,차,카,타,파,하'.split(',')}"
-						th:href="@{/words(mode='ko', group=${g}, q=${q}, category=${category})}"
-						th:text="${g}" class="index-link"></a>
-				</div>
-
-				<!-- 일본어 인덱스: 히라가나순 모드일 때만 -->
-				<div th:if="${mode == 'ja'}" class="kana-index mb-3">
-					<a th:each="g : ${'あ,か,さ,た,な,は,ま,や,ら,わ'.split(',')}"
-						th:href="@{/words(mode='ja', group=${g}, q=${q}, category=${category})}"
-						th:text="${g}" class="index-link"></a>
-				</div>
-
-
-
-				<div class="p-2">
-
-					<div th:if="${#lists.isEmpty(items)}"
-						class="text-center text-muted my-4">목록에 추가된 표현이 없습니다.</div>
-
-
-					<div th:each="w, iterStat : ${items}" class="word-box">
-						<ul class="accordion">
-							<li class="accordion__li">
-								<!-- 클릭 버튼 -->
-								<div class="accordion__title toggle-accordion">
-									<span th:text="${w.word?.japaneseWord ?: w.customJapaneseWord}">
-										ご連絡ありがとうございます。 </span> <span
-										th:text="${w.word?.readingKana ?: w.customReadingKana}">
-										ごれんらくありがとうございます。 </span>
-								</div> <!-- 아코디언 내용 -->
-								<div class="accordion__content">
-									<p>
-										<b style="color: #6155F5;">[한국어 뜻]</b> <span
-											th:text="${w.word?.koreanMeaning ?: w.customKoreanMeaning}">>연락
-											감사합니다.</span>
-									</p>
-									<p>
-										<b style="color: #6155F5;">[예문]</b> <span
-											th:text="${w.word?.exampleSentenceJp ?: w.customExampleSentenceJp}">送っていただいた資料を確認しました。</span>
-									</p>
-
-									<div th:if="${me != null and w.wordList.owner.id == me}"
-										class="accordion-actions mt-2 d-flex justify-content-end">
-										<a href="javascript:void(0)" class="btn btn-sm"
-											data-bs-toggle="modal" data-bs-target="#edit_mywords_modal"
-											th:attr="data-id=${w.id},
+								<div th:if="${me != null and w.wordList.owner.id == me}"
+									class="accordion-actions mt-2 d-flex justify-content-end">
+									<a href="javascript:void(0)" class="btn btn-sm"
+										data-bs-toggle="modal" data-bs-target="#edit_mywords_modal"
+										th:attr="data-id=${w.id},
 								            data-jp=${w.customJapaneseWord},
 								            data-kana=${w.customReadingKana},
 								            data-kr=${w.customKoreanMeaning},
 								            data-ex=${w.customExampleSentenceJp}">
-											수정 </a>
+										수정 </a>
 
-										<form th:action="@{|/lists/${list.id}/items/${w.id}/delete|}"
-											method="post" class="d-inline">
-											<button type="submit" class="btn btn-sm">삭제</button>
-										</form>
-									</div>
+									<form th:action="@{|/lists/${list.id}/items/${w.id}/delete|}"
+										method="post" class="d-inline">
+										<button type="submit" class="btn btn-sm">삭제</button>
+									</form>
 								</div>
-							</li>
-						</ul>
-					</div>
+							</div>
+						</li>
+					</ul>
 				</div>
+			</div>
 
 
-				<!-- 모달을 불러오는 부분 -->
-				<div th:replace="fragments/new_mywords_modal :: new_mywords_modal"></div>
-				<div th:replace="fragments/edit_mywords_modal :: edit_mywords_modal"></div>
+			<!-- 모달을 불러오는 부분 -->
+			<div th:replace="fragments/new_mywords_modal :: new_mywords_modal"></div>
+			<div th:replace="fragments/edit_mywords_modal :: edit_mywords_modal"></div>
 	</main>
 
 	<footer th:replace="fragments/footer :: site-footer"

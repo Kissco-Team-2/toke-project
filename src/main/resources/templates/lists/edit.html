@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>새 단어장 만들기</title>
+<title>단어장 수정</title>
 <link
 	href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
 	rel="stylesheet" />
@@ -53,22 +53,24 @@ body {
 
 /* 태그 버튼의 active 스타일 (Bootstrap 기본과 비슷하지만 톤 조정) */
 .btn-tag.active {
-	background-color:  #000;
+	background-color: #000;
 	color: #fff;
 	border-color: #000;
 }
-.btn-tag { 
-white-space: nowrap; 
-border-color: #bfbfbf;
-}
-.selected-tags { min-height: 1.2rem; }
 
-.form-label{
-font-size: 0.9rem;
-font-weight: 600;
+.btn-tag {
+	white-space: nowrap;
+	border-color: #bfbfbf;
 }
 
+.selected-tags {
+	min-height: 1.2rem;
+}
 
+.form-label {
+	font-size: 0.9rem;
+	font-weight: 600;
+}
 </style>
 <body class="d-flex flex-column min-vh-100" style="margin: 0;">
 	<header th:replace="fragments/header :: site-header"></header>
@@ -78,29 +80,30 @@ font-weight: 600;
 				<div class="card card-soft"
 					style="width: 670px; height: 590px; padding: 24px;">
 					<div class="card-body">
-						<h3 class="text-center fw-bold">새 단어장 만들기</h3>
-						<form th:action="@{/lists/new}" method="post" class="needs-validation"
-							novalidate>
+						<h3 class="text-center fw-bold">단어장 수정</h3>
+						<form th:action="@{|/lists/${list.id}/edit|}" method="post"
+							class="needs-validation" novalidate>
 							<input type="hidden" th:if="${_csrf!=null}"
 								th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 
 							<!-- 히든 필드: 선택된 태그들이 콤마로 구분되어 들어감 -->
-							<input type="hidden" id="tagsHidden" name="tags" value="" />
+							<input type="hidden" id="tagsHidden" name="tags"
+								th:value="${tags}" />
 
 							<div class="mb-3">
 								<label for="listName" class="form-label">단어장 이름<span
-									class="text-danger">*</span></label>
-								<input id="listName"
+									class="text-danger">*</span></label> 
+									<input id="listName"
 									name="listName" type="text" class="form-control"
-									placeholder="예: 비즈니스 표현" required>
+									th:value="${list.listName}" required>
 								<div class="invalid-feedback">단어장 이름을 입력하세요.</div>
 							</div>
 
 							<div class="mb-3">
 								<label for="description" class="form-label mt-2">설명 (선택)</label>
 								<textarea id="description" name="description"
-									class="form-control mb-2" 
-									style="height: 150px;" placeholder="간단한 설명"></textarea>
+									class="form-control mb-2" style="height: 150px;"
+									th:value="${list.description}"></textarea>
 							</div>
 
 							<!-- ===== 해시태그 토글 버튼 그룹 ===== -->
@@ -108,27 +111,46 @@ font-weight: 600;
 								<label class="form-label d-block mt-2">해시태그 (중복 선택 가능)</label>
 
 								<!-- 버튼 그룹: 각 버튼은 data-value에 태그 원문을 가짐 -->
-								<div class="d-flex flex-wrap gap-2 mb-2" id="tagButtonGroup" role="group" aria-label="해시태그">
-									<button type="button" class="btn btn-outline-secondary btn-tag" data-value="고객대응">고객 대응</button>
-									<button type="button" class="btn btn-outline-secondary btn-tag" data-value="메일">메일</button>
-									<button type="button" class="btn btn-outline-secondary btn-tag" data-value="보고">보고</button>
-									<button type="button" class="btn btn-outline-secondary btn-tag" data-value="인사">인사</button>
-									<button type="button" class="btn btn-outline-secondary btn-tag" data-value="전화">전화</button>
-									<button type="button" class="btn btn-outline-secondary btn-tag" data-value="제안">제안</button>
-									<button type="button" class="btn btn-outline-secondary btn-tag" data-value="회의">회의</button>
+								<div class="d-flex flex-wrap gap-2 mb-2" id="tagButtonGroup"
+									role="group" aria-label="해시태그">
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="고객대응"
+										th:classappend="${#lists.contains(listTags, '고객대응')} ? ' active'">고객
+										대응</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="메일"
+										th:classappend="${#lists.contains(listTags, '메일')} ? ' active'">메일</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="보고"
+										th:classappend="${#lists.contains(listTags, '보고')} ? ' active'">보고</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="인사"
+										th:classappend="${#lists.contains(listTags, '인사')} ? ' active'">인사</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="전화"
+										th:classappend="${#lists.contains(listTags, '전화')} ? ' active'">전화</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="제안"
+										th:classappend="${#lists.contains(listTags, '제안')} ? ' active'">제안</button>
+									<button type="button" class="btn btn-outline-secondary btn-tag"
+										data-value="회의"
+										th:classappend="${#lists.contains(listTags, '회의')} ? ' active'">회의</button>
 								</div>
 
+
 								<!-- 선택된 태그 미리보기 (간단 UI) -->
-								<div class="selected-tags text-muted small mb-2" id="selectedTagsPreview">선택된 태그가 없습니다.</div>
+								<div class="selected-tags text-muted small mb-2"
+									id="selectedTagsPreview">선택된 태그가 없습니다.</div>
 
 							</div>
 
 							<div class="row g-3" style="margin-top: 0.3rem;">
 								<div class="col-6 d-grid">
-									<button type="submit" class="btn btn-soft-green py-2">단어장 생성</button>
+									<button type="submit" class="btn btn-soft-green py-2">단어장
+										수정</button>
 								</div>
 								<div class="col-6 d-grid">
-									<a class="btn btn-black py-2" th:href="@{/lists}">취소</a>
+									<a class="btn btn-black py-2" th:href="@{|/lists/${list.id}|}">취소</a>
 								</div>
 							</div>
 						</form>

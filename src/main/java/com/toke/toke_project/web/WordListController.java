@@ -1,5 +1,6 @@
 package com.toke.toke_project.web;
 
+import com.toke.toke_project.domain.Hashtag;
 import com.toke.toke_project.domain.Users;
 import com.toke.toke_project.domain.WordList;
 import com.toke.toke_project.repo.HashtagRepository;
@@ -25,230 +26,256 @@ import java.util.*;
 @RequestMapping("/lists")
 public class WordListController {
 
-    private final WordListService wordListService;
-    private final UsersRepository usersRepo;
-    private final HashtagRepository hashtagRepository; // ✅ 추가
+	private final WordListService wordListService;
+	private final UsersRepository usersRepo;
+	private final HashtagRepository hashtagRepository; // ✅ 추가
 
-    // --- 모두의 단어장 ---
-    @GetMapping
-    public String all(@RequestParam(value = "keyword", required = false) String keyword,
-                      @RequestParam(value = "tag", required = false) String tag,
-                      Model model) {
-        List<WordList> lists = wordListService.search(keyword, null, tag);
+	// --- 모두의 단어장 ---
+	@GetMapping
+	public String all(@RequestParam(value = "keyword", required = false) String keyword,
+			@RequestParam(value = "tag", required = false) String tag, Model model) {
+		List<WordList> lists = wordListService.search(keyword, null, tag);
 
-        model.addAttribute("lists", lists);
-        model.addAttribute("keyword", keyword);
-        model.addAttribute("tag", tag);
-        model.addAttribute("groups", chunkLists(lists, 3));
-        model.addAttribute("allTags", hashtagRepository.findAll()); // ✅ findAll()
+		if (lists == null) {
+			lists = Collections.emptyList();
+		} else {
+			lists = lists.stream().filter(Objects::nonNull).toList();
+		}
 
-        model.addAttribute("title", "모두의 단어장");
-        return "/lists/index";
-    }
+		model.addAttribute("lists", lists);
+		model.addAttribute("keyword", keyword);
+		model.addAttribute("tag", tag);
+		model.addAttribute("groups", chunkLists(lists, 3));
+		model.addAttribute("allTags", hashtagRepository.findAll());
 
-    // --- 내 단어장 (로그인 필요) ---
-    @GetMapping("/mine")
-    public String mine(@RequestParam(value = "keyword", required = false) String keyword,
-                       @RequestParam(value = "tag", required = false) String tag,
-                       Principal principal,
-                       Model model) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
+		model.addAttribute("title", "모두의 단어장");
+		return "/lists/index";
+	}
 
-        List<WordList> lists = wordListService.findMine(me, keyword, tag);
+	// --- 내 단어장 (로그인 필요) ---
+	@GetMapping("/mine")
+	public String mine(@RequestParam(value = "keyword", required = false) String keyword,
+			@RequestParam(value = "tag", required = false) String tag, Principal principal, Model model) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
 
-        model.addAttribute("lists", lists);
-        model.addAttribute("keyword", keyword);
-        model.addAttribute("tag", tag);
-        model.addAttribute("groups", chunkLists(lists, 3));
-        model.addAttribute("allTags", hashtagRepository.findAll()); // ✅ findAll()
+		List<WordList> lists = wordListService.findMine(me, keyword, tag);
 
-        model.addAttribute("title", "내 단어장");
-        return "lists/mine";
-    }
+		model.addAttribute("lists", lists);
+		model.addAttribute("keyword", keyword);
+		model.addAttribute("tag", tag);
+		model.addAttribute("groups", chunkLists(lists, 3));
+		model.addAttribute("allTags", hashtagRepository.findAll()); // ✅ findAll()
 
-    // --- 상세 (공개) ---
-    @GetMapping("/{id}")
-    public String detail(@PathVariable Long id, Principal principal, Model model) {
-        var map = wordListService.getDetail(id);
-        WordList wl = (WordList) map.get("list");
+		model.addAttribute("title", "내 단어장");
+		return "lists/mine";
+	}
 
-        model.addAttribute("list", map.get("list"));
-        model.addAttribute("items", map.get("items"));
-        model.addAttribute("listTags", wl.getTags());
-        model.addAttribute("customWordForm", new CustomWordForm());
+	// --- 상세 (공개) ---
+	@GetMapping("/{id}")
+	public String detail(@PathVariable Long id, Principal principal, Model model) {
+		var map = wordListService.getDetail(id);
+		WordList wl = (WordList) map.get("list");
 
-        if (principal != null) {
-            Long me = currentUserId(principal);
-            model.addAttribute("me", me);
-        }
+		model.addAttribute("list", map.get("list"));
+		model.addAttribute("items", map.get("items"));
+		model.addAttribute("listTags", wl.getTags());
+		model.addAttribute("customWordForm", new CustomWordForm());
 
-        return "lists/detail";
-    }
+		if (principal != null) {
+			Long me = currentUserId(principal);
+			model.addAttribute("me", me);
+		}
 
-    // --- 수정(제목/설명/태그) (소유자만) ---
-    @PostMapping("/{id}/edit")
-    public String edit(@PathVariable Long id, Principal principal,
-                       @RequestParam String listName,
-                       @RequestParam(required = false) String description,
-                       @RequestParam(required = false) String tags) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
-        wordListService.updateList(id, me, listName, description, splitTags(tags));
-        return "redirect:/lists/" + id;
-    }
+		return "lists/detail";
+	}
+	
+	@GetMapping("/new")
+	public String newListForm(Principal principal, Model model) {
+		if(principal == null) return "redirect:/login";
+		model.addAttribute("lists", new WordList());
+		return "lists/new";
+	}
+	
+	
+	@PostMapping("/new")
+	public String createList(@RequestParam String listName,
+							@RequestParam(required=false) String description,
+							@RequestParam(required=false) String tags,
+							Principal principal) {
+		if(principal == null) return "redirect:/login";
+		Long me = currentUserId(principal);
+		
+		wordListService.createList(me, listName, description, splitTags(tags));
+		
+		return "redirect:/lists/mine";
+	}
+	
+	
+	// --- 수정(제목/설명/태그) (소유자만) ---
+	@PostMapping("/{id}/edit")
+	public String edit(@PathVariable Long id, Principal principal, @RequestParam String listName,
+			@RequestParam(required = false) String description, @RequestParam(required = false) String tags) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
+		wordListService.updateList(id, me, listName, description, splitTags(tags));
+		return "redirect:/lists/" + id;
+	}
 
-    // --- 삭제 (소유자만) ---
-    @PostMapping("/{id}/delete")
-    public String delete(@PathVariable Long id, Principal principal) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
-        wordListService.deleteList(id, me);
-        return "redirect:/lists/mine";
-    }
+	@GetMapping("/{id}/edit")
+	public String editForm(@PathVariable Long id, Principal principal, Model model) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
 
-    // --- 아이템 추가(공식 단어) ---
-    @PostMapping("/{id}/items/addWord")
-    public String addWordItem(@PathVariable Long id,
-                              Principal principal,
-                              @RequestParam Long wordId) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
-        wordListService.addItemFromWord(id, me, wordId);
-        return "redirect:/lists/" + id;
-    }
-    
-    
- // --- 여러 공식 단어를 내 단어장에 추가 (소유자만) ---
-    @PostMapping("/addWords")
-    public String addWordsToMyList(@RequestParam("selectedWordIds") String selectedWordIds,
-                                   @RequestParam("listId") Long listId,
-                                   Principal principal,
-                                   RedirectAttributes ra) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
+		var map = wordListService.getDetail(id);
+		WordList wl = (WordList) map.get("list");
 
-        if (selectedWordIds == null || selectedWordIds.isBlank()) {
-            ra.addFlashAttribute("msg", "추가할 단어를 선택하세요.");
-            return "redirect:/words";
-        }
+		if (!wl.getOwner().getId().equals(me)) {
+			throw new SecurityException("권한 없음");
+		}
 
-        // "1,2,3" → [1L, 2L, 3L]
-        List<Long> wordIds = Arrays.stream(selectedWordIds.split(","))
-                .filter(s -> !s.isBlank())
-                .map(Long::parseLong)
-                .toList();
+		model.addAttribute("list", wl);
+		model.addAttribute("listTags", wl.getTags().stream().map(Hashtag::getTagName).toList());
+		return "lists/edit"; // templates/lists/edit.html
+	}
 
-        wordListService.addWordsToMyList(listId, me, wordIds);
-
-        ra.addFlashAttribute("msg", "선택한 단어가 내 단어장에 추가되었습니다.");
-        return "redirect:/lists/" + listId;
-    }
-
-    
-    
-
-    // --- 아이템 추가(커스텀) ---
-    @PostMapping("/{id}/items/addCustom")
-    public String addCustomItem(@PathVariable Long id,
-                                Principal principal,
-                                @Valid @ModelAttribute("customWordForm") CustomWordForm form,
-                                BindingResult bindingResult,
-                                Model model) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
-
-        if (bindingResult.hasErrors()) {
-            var map = wordListService.getDetail(id);
-            WordList wl = (WordList) map.get("list");
-
-            model.addAttribute("list", map.get("list"));
-            model.addAttribute("items", map.get("items"));
-            model.addAttribute("listTags", wl.getTags());
-            model.addAttribute("customWordForm", form);
-            return "lists/detail";
-        }
-        wordListService.addCustomItem(id, me, form.getJp(), form.getKana(), form.getKr(), form.getEx());
-        return "redirect:/lists/" + id;
-    }
-
-    // --- 아이템 삭제 (소유자만) ---
-    @PostMapping("/{id}/items/{itemId}/delete")
-    public String deleteItem(@PathVariable Long id,
-                             @PathVariable Long itemId,
-                             Principal principal) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
-        wordListService.removeItem(itemId, me);
-        return "redirect:/lists/" + id;
-    }
-
-    // --- 검색 (제목/닉네임/태그) ---
-    @GetMapping("/search")
-    public String search(@RequestParam(required = false) String keyword,
-                         Principal principal,
-                         Model model) {
-        if (principal == null) return "redirect:/login";
-
-        List<WordList> lists = wordListService.search(keyword, keyword, keyword);
-
-        model.addAttribute("lists", lists);
-        model.addAttribute("keyword", keyword);
-        model.addAttribute("groups", chunkLists(lists, 3));
-        model.addAttribute("allTags", hashtagRepository.findAll());
-
-        model.addAttribute("title", "검색 결과");
-        return "lists/index";
-    }
-    
+	// --- 삭제 (소유자만) ---
+	@PostMapping("/{id}/delete")
+	public String delete(@PathVariable Long id, Principal principal) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
+		wordListService.deleteList(id, me);
+		return "redirect:/lists/mine";
+	}
+	
+	
 
 
-    // --- 커스텀 항목 수정 (소유자만) ---
-    @PostMapping("/{id}/items/{itemId}/editCustom")
-    public String editCustom(@PathVariable Long id,
-                             @PathVariable Long itemId,
-                             Principal principal,
-                             @RequestParam String jp,
-                             @RequestParam(required = false) String kana,
-                             @RequestParam(required = false) String kr,
-                             @RequestParam(required = false) String ex) {
-        if (principal == null) return "redirect:/login";
-        Long me = currentUserId(principal);
-        wordListService.updateCustomItem(itemId, me, jp, kana, kr, ex);
-        return "redirect:/lists/" + id;
-    }
+	// --- 아이템 추가(공식 단어) ---
+	@PostMapping("/{id}/items/addWord")
+	public String addWordItem(@PathVariable Long id, Principal principal, @RequestParam Long wordId) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
+		wordListService.addItemFromWord(id, me, wordId);
+		return "redirect:/lists/" + id;
+	}
 
-    
-    // --- helper: 로그인 사용자 ID 조회 ---
-    private Long currentUserId(Principal principal) {
-        if (principal == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
-        }
-        String username = principal.getName(); // 보통 email 또는 username
-        Users u = usersRepo.findByEmail(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
-        return u.getId();
-    }
+	// --- 여러 공식 단어를 내 단어장에 추가 (소유자만) ---
+	@PostMapping("/addWords")
+	public String addWordsToMyList(@RequestParam("selectedWordIds") String selectedWordIds,
+			@RequestParam("listId") Long listId, Principal principal, RedirectAttributes ra) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
 
-    // --- helper: 태그 분리 ---
-    private List<String> splitTags(String tags) {
-        if (tags == null || tags.isBlank())
-            return Collections.emptyList();
-        return Arrays.stream(tags.split("[,#\\s]+"))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .toList();
-    }
+		if (selectedWordIds == null || selectedWordIds.isBlank()) {
+			ra.addFlashAttribute("msg", "추가할 단어를 선택하세요.");
+			return "redirect:/words";
+		}
 
-    // --- helper: 리스트를 chunkSize 단위로 묶어서 ---
-    private List<List<WordList>> chunkLists(List<WordList> lists, int chunkSize) {
-        if (lists == null || lists.isEmpty())
-            return Collections.emptyList();
-        List<List<WordList>> groups = new ArrayList<>();
-        for (int i = 0; i < lists.size(); i += chunkSize) {
-            int end = Math.min(i + chunkSize, lists.size());
-            groups.add(new ArrayList<>(lists.subList(i, end)));
-        }
-        return groups;
-    }
+		// "1,2,3" → [1L, 2L, 3L]
+		List<Long> wordIds = Arrays.stream(selectedWordIds.split(",")).filter(s -> !s.isBlank()).map(Long::parseLong)
+				.toList();
+
+		wordListService.addWordsToMyList(listId, me, wordIds);
+
+		ra.addFlashAttribute("msg", "선택한 단어가 내 단어장에 추가되었습니다.");
+		return "redirect:/lists/" + listId;
+	}
+
+	// --- 아이템 추가(커스텀) ---
+	@PostMapping("/{id}/items/addCustom")
+	public String addCustomItem(@PathVariable Long id, Principal principal,
+			@Valid @ModelAttribute("customWordForm") CustomWordForm form, BindingResult bindingResult, Model model) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
+
+		if (bindingResult.hasErrors()) {
+			var map = wordListService.getDetail(id);
+			WordList wl = (WordList) map.get("list");
+
+			model.addAttribute("list", map.get("list"));
+			model.addAttribute("items", map.get("items"));
+			model.addAttribute("listTags", wl.getTags());
+			model.addAttribute("customWordForm", form);
+			return "lists/detail";
+		}
+		wordListService.addCustomItem(id, me, form.getJp(), form.getKana(), form.getKr(), form.getEx());
+		return "redirect:/lists/" + id;
+	}
+
+	// --- 아이템 삭제 (소유자만) ---
+	@PostMapping("/{id}/items/{itemId}/delete")
+	public String deleteItem(@PathVariable Long id, @PathVariable Long itemId, Principal principal) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
+		wordListService.removeItem(itemId, me);
+		return "redirect:/lists/" + id;
+	}
+
+	// --- 검색 (제목/닉네임/태그) ---
+	@GetMapping("/search")
+	public String search(@RequestParam(required = false) String keyword, Principal principal, Model model) {
+		if (principal == null)
+			return "redirect:/login";
+
+		List<WordList> lists = wordListService.search(keyword, keyword, keyword);
+
+		model.addAttribute("lists", lists);
+		model.addAttribute("keyword", keyword);
+		model.addAttribute("groups", chunkLists(lists, 3));
+		model.addAttribute("allTags", hashtagRepository.findAll());
+
+		model.addAttribute("title", "검색 결과");
+		return "lists/index";
+	}
+
+	// --- 커스텀 항목 수정 (소유자만) ---
+	@PostMapping("/{id}/items/{itemId}/editCustom")
+	public String editCustom(@PathVariable Long id, @PathVariable Long itemId, Principal principal,
+			@RequestParam String jp, @RequestParam(required = false) String kana,
+			@RequestParam(required = false) String kr, @RequestParam(required = false) String ex) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
+		wordListService.updateCustomItem(itemId, me, jp, kana, kr, ex);
+		return "redirect:/lists/" + id;
+	}
+
+	// --- helper: 로그인 사용자 ID 조회 ---
+	private Long currentUserId(Principal principal) {
+		if (principal == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+		}
+		String username = principal.getName(); // 보통 email 또는 username
+		Users u = usersRepo.findByEmail(username)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+		return u.getId();
+	}
+
+	// --- helper: 태그 분리 ---
+	private List<String> splitTags(String tags) {
+		if (tags == null || tags.isBlank())
+			return Collections.emptyList();
+		return Arrays.stream(tags.split("[,#\\s]+")).map(String::trim).filter(s -> !s.isBlank()).toList();
+	}
+
+	// --- helper: 리스트를 chunkSize 단위로 묶어서 ---
+	private List<List<WordList>> chunkLists(List<WordList> lists, int chunkSize) {
+		if (lists == null || lists.isEmpty())
+			return Collections.emptyList();
+		List<List<WordList>> groups = new ArrayList<>();
+		for (int i = 0; i < lists.size(); i += chunkSize) {
+			int end = Math.min(i + chunkSize, lists.size());
+			groups.add(new ArrayList<>(lists.subList(i, end)));
+		}
+		return groups;
+	}
 }
