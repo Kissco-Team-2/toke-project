@@ -1,164 +1,173 @@
 package com.toke.toke_project.web;
 
-import com.toke.toke_project.domain.Users;
-import com.toke.toke_project.repo.UsersRepository;
-import com.toke.toke_project.service.QuizService;
+import com.toke.toke_project.security.CustomUserDetails;
 import com.toke.toke_project.service.WrongNoteService;
-import com.toke.toke_project.web.dto.BulkDeleteResponse;
-import com.toke.toke_project.web.dto.QuizView;
-import com.toke.toke_project.web.dto.WrongNoteDto;
-import com.toke.toke_project.web.dto.WrongNoteQuizRequest;
+import com.toke.toke_project.service.QuizService;
+import com.toke.toke_project.web.dto.*;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 @RestController
-@RequestMapping("/wrong-notes")
+@RequestMapping("/api/wrong-notes")
 public class WrongNoteController {
 
     private final WrongNoteService wrongNoteService;
-    private final UsersRepository usersRepository;
-    private final QuizService quizService;     
-    
-    public WrongNoteController(WrongNoteService wrongNoteService, UsersRepository usersRepository, QuizService quizService) {
+    private final QuizService quizService;
+
+    public WrongNoteController(WrongNoteService wrongNoteService,
+                               QuizService quizService) {
         this.wrongNoteService = wrongNoteService;
-        this.usersRepository = usersRepository;
         this.quizService = quizService;
     }
 
-    // --- 도움 메서드: Principal에서 username을 꺼내 users 테이블에서 id를 얻음 ---
-    private Long resolveUserId(Principal principal) {
-        if (principal == null) return null;
-        String username = principal.getName();
-        return usersRepository.findByUsername(username)
-                .map(Users::getId)
-                .orElse(null);
-    }
-
-    // 간단 목록 (기본 최신순) - 로그인 사용자 기준
+    /** 오답 목록 (기본 최신순) */
     @GetMapping
-    public ResponseEntity<List<WrongNoteDto>> list(Principal principal) {
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<WrongNoteDto>> list(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
         return ResponseEntity.ok(wrongNoteService.listByUser(userId));
     }
 
-    // 목록 (필터 포함) — 로그인 사용자 기준
+    /** 오답 목록(필터 포함, 페이지네이션) */
     @GetMapping("/filter")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<WrongNoteDto>> listFiltered(
-            Principal principal,
-            @RequestParam(value = "sort", defaultValue = "LATEST") String sort,
-            @RequestParam(value = "dateFilter", defaultValue = "ALL") String dateFilter,
-            @RequestParam(value = "from", required = false) String from,
-            @RequestParam(value = "to", required = false) String to,
-            @RequestParam(value = "category", required = false) String category,
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "20") int size) {
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam(value = "sort",       defaultValue = "LATEST") String sort,
+            @RequestParam(value = "dateFilter", defaultValue = "ALL")    String dateFilter,
+            @RequestParam(value = "from",       required = false)        String from,
+            @RequestParam(value = "to",         required = false)        String to,
+            @RequestParam(value = "category",   required = false)        String category,
+            @RequestParam(value = "page",       defaultValue = "0")      int page,
+            @RequestParam(value = "size",       defaultValue = "20")     int size) {
 
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
 
-        Page<WrongNoteDto> res = wrongNoteService.listByUserWithFilters(userId, sort, dateFilter, from, to, category, page, size);
+        Page<WrongNoteDto> res = wrongNoteService
+                .listByUserWithFilters(userId, sort, dateFilter, from, to, category, page, size);
         return ResponseEntity.ok(res);
     }
 
-    // 단건 업데이트 (메모 작성/수정 & starred)
+    /** 메모 저장/수정 */
     @PatchMapping("/{noteId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<WrongNoteDto> updateNote(
-            Principal principal,
+            @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long noteId,
-            @RequestBody UpdateNoteRequest req
-    ) {
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            @RequestBody UpdateNoteRequest req) {
 
-        // 시연 목적: 간단 호출 (원하면 서비스에 소유권 체크 메서드로 바꿔 드립니다)
-        WrongNoteDto dto = wrongNoteService.updateNote(noteId, req.getNote(), req.getStarred());
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
+
+        WrongNoteDto dto = wrongNoteService.updateNote(noteId, userId, req.getNote(), req.getStarred());
         return ResponseEntity.ok(dto);
     }
 
-    // 단건 삭제 (noteId) - 시연용: deletes without explicit ownership check at controller level
+    /** 단건 삭제 */
     @DeleteMapping("/{noteId}")
-    public ResponseEntity<Void> delete(@PathVariable Long noteId, Principal principal) {
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long noteId) {
 
-        // 권한 검증이 서비스에 없다면 (권장) 서비스에서 체크할 수 있게 바꾸세요.
-        wrongNoteService.deleteNote(noteId);
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
+
+        wrongNoteService.deleteNote(noteId, userId);
         return ResponseEntity.noContent().build();
     }
 
-    // 다중 삭제 (body: [id, id, ...]) - 로그인 사용자 기준으로 소유한 것만 삭제 처리
+    /** 다중 삭제 */
     @DeleteMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<BulkDeleteResponse> deleteBulk(
-            Principal principal,
+            @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody List<Long> noteIds) {
 
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
 
         BulkDeleteResponse res = wrongNoteService.deleteNotesBulk(noteIds, userId);
         return ResponseEntity.ok(res);
     }
 
-    // set starred (explicit Y/N)
+    /** 별표 on/off 설정 */
     @PatchMapping("/{noteId}/star")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<WrongNoteDto> setStar(
-            Principal principal,
+            @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long noteId,
             @RequestParam("starred") boolean starred) {
 
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
 
         WrongNoteDto updated = wrongNoteService.setStarred(noteId, userId, starred);
         return ResponseEntity.ok(updated);
     }
 
-    // toggle star
+    /** 별표 토글 */
     @PostMapping("/{noteId}/star/toggle")
-    public ResponseEntity<WrongNoteDto> toggleStar(Principal principal, @PathVariable Long noteId) {
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<WrongNoteDto> toggleStar(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long noteId) {
+
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
 
         WrongNoteDto dto = wrongNoteService.toggleStar(noteId, userId);
         return ResponseEntity.ok(dto);
     }
 
-    // starred 목록
+    /** 별표 목록 */
     @GetMapping("/starred")
-    public ResponseEntity<List<WrongNoteDto>> listStarred(Principal principal) {
-        Long userId = resolveUserId(principal);
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<WrongNoteDto>> listStarred(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
+
         return ResponseEntity.ok(wrongNoteService.listStarredByUser(userId));
     }
 
-    // DTO for partial update
-    public static class UpdateNoteRequest {
-        private String note;
-        private String starred; // 'Y' or 'N'
-
-        public String getNote() { return note; }
-        public void setNote(String note) { this.note = note; }
-
-        public String getStarred() { return starred; }
-        public void setStarred(String starred) { this.starred = starred; }
-    }
-    
- // 컨트롤러 내부에 추가
+    /** 오답 기반 퀴즈 시작(API) */
     @PostMapping("/quiz-start")
-    public ResponseEntity<QuizView> startQuizFromWrongNotes(Principal principal,
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<QuizView> startQuizFromWrongNotes(
+            @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody WrongNoteQuizRequest req) {
 
-        Long userId = resolveUserId(principal); // 기존 resolveUserId helper 사용
-        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        Long userId = principal.getId();
 
         QuizView view = quizService.generateFromWrongNotesForUser(userId, req);
         return ResponseEntity.ok(view);
+    }
+
+    /** DTO for partial update */
+    public static class UpdateNoteRequest {
+        private String note;
+        private String starred; // 'Y' or 'N'
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getStarred() { return starred; }
+        public void setStarred(String starred) { this.starred = starred; }
     }
 }

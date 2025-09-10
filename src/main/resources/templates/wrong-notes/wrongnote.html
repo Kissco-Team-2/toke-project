@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>오답노트</title>
+
+  <!-- _csrf 없을 때도 파싱 안전 -->
+  <meta name="_csrf" th:content="${_csrf != null ? _csrf.token : ''}">
+  <meta name="_csrf_header" th:content="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    :root{ --pill:#E7E9FF; --ink:#111827; --muted:#6b7280; --row:#fff; --row-border:#ececec; --star:#ffc107; }
+    body{ background:#fff; }
+    .wrap{ max-width:1200px; margin:28px auto 64px; padding:0 12px; }
+    .page-title{ font-weight:800; text-align:center; letter-spacing:.02em; }
+    .toolbar{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:14px 0 10px; }
+    .ghost{ border:1px solid #e5e7eb; background:#fff }
+    .ghost:focus{ box-shadow:none; border-color:#c7cbe6 }
+    .mini-tabs{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .mini-tabs .btn{ --bs-btn-padding-y:.25rem; --bs-btn-padding-x:.75rem; --bs-btn-border-radius:999px; }
+    .mini-tabs .btn.active{ background:#111827; color:#fff; border-color:#111827; }
+    .table-head{ background:var(--pill); border-radius:40px; padding:.65rem 1rem; color:#4b5563; font-weight:700 }
+    .note{ background:var(--row); border:1px solid var(--row-border); border-radius:18px; box-shadow:0 6px 18px rgba(0,0,0,.05); padding:14px 16px; }
+    .star-btn{ background:none; border:none; font-size:20px; color:#c7cad4; cursor:pointer; }
+    .star-btn.active{ color:var(--star); }
+    .chev{ cursor:pointer; user-select:none; font-size:18px; }
+    .memo-empty{ color:#9ca3af }
+    .memo-text{ min-height:90px }
+    .select-box{ display:none; }
+    .example-2lines{
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      overflow:hidden; white-space:normal; line-height:1.4;
+    }
+    .example-full{ white-space:pre-wrap; line-height:1.5; color:#374151 }
+    .pager{ display:flex; justify-content:center; gap:8px; margin-top:16px; }
+    @media (min-width: 768px){
+      .col-stars{ flex:0 0 auto; width:8.333333%; }
+      .col-jp   { flex:0 0 auto; width:25%; }
+      .col-kr   { flex:0 0 auto; width:25%; }
+      .col-cnt  { flex:0 0 auto; width:8.333333%; text-align:center;}
+      .col-date { flex:0 0 auto; width:16.666667%; text-align:center;}
+      .col-ex   { flex:0 0 auto; width:16.666667%; }
+    }
+  </style>
+</head>
+<body class="d-flex flex-column min-vh-100">
+	<header th:replace="fragments/header :: site-header"></header>
+
+	<main class="flex-grow-1">
+<div class="wrap">
+  <h2 class="page-title">오답노트</h2>
+
+  <!-- 상단 컨트롤 -->
+  <div class="toolbar">
+    <div class="mini-tabs">
+      <button class="btn btn-outline-secondary active" data-sort="LATEST">최신순</button>
+      <button class="btn btn-outline-secondary" data-sort="LAST_WRONG_DATE">날짜별</button>
+
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" id="catBtn" data-bs-toggle="dropdown" aria-expanded="false">
+          카테고리별
+        </button>
+        <ul class="dropdown-menu">
+          <li><button class="dropdown-item active" data-cat="">전체</button></li>
+          <li><button class="dropdown-item" data-cat="고객대응">고객대응</button></li>
+          <li><button class="dropdown-item" data-cat="인사">인사</button></li>
+          <li><button class="dropdown-item" data-cat="전화">전화</button></li>
+          <li><button class="dropdown-item" data-cat="회의">회의</button></li>
+          <li><button class="dropdown-item" data-cat="제안">제안</button></li>
+          <li><button class="dropdown-item" data-cat="보고">보고</button></li>
+          <li><button class="dropdown-item" data-cat="메일">메일</button></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+      <select id="dateFilter" class="form-select form-select-sm ghost" style="width:130px">
+        <option value="ALL">전체 기간</option>
+        <option value="1M">최근 1개월</option>
+        <option value="3M">최근 3개월</option>
+        <option value="LAST_MONTH">지난달</option>
+        <option value="CUSTOM">직접 지정</option>
+      </select>
+      <input id="from" type="date" class="form-control form-control-sm ghost" style="width:150px; display:none">
+      <input id="to"   type="date" class="form-control form-control-sm ghost" style="width:150px; display:none">
+      <button id="apply" class="btn btn-sm btn-primary">적용</button>
+
+      <button id="btn-quiz" class="btn btn-dark">오답만 퀴즈</button>
+
+      <button id="btn-delmode" class="btn btn-outline-danger">삭제</button>
+      <button id="btn-delete-all" class="btn btn-danger d-none">전체 삭제</button>
+      <button id="btn-delete-selected" class="btn btn-outline-danger d-none">선택 삭제</button>
+    </div>
+  </div>
+
+  <div class="row gx-3 gy-2 table-head mb-2">
+    <div class="col-stars text-center">⭐</div>
+    <div class="col-jp">일본어</div>
+    <div class="col-kr">한국어 뜻</div>
+    <div class="col-cnt">틀린 횟수</div>
+    <div class="col-date">마지막 틀린 날짜</div>
+    <div class="col-ex">예문</div>
+  </div>
+
+  <div id="list" class="vstack gap-3"></div>
+
+  <div class="pager">
+    <button class="btn btn-outline-secondary btn-sm" id="prev">이전</button>
+    <span id="pageInfo" class="align-self-center small text-muted">1 / 1</span>
+    <button class="btn btn-outline-secondary btn-sm" id="next">다음</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script th:inline="none">
+/* ===== 상태 ===== */
+const API_BASE = '/api/wrong-notes';
+const state = { page:0, size:10, totalPages:1, sort:'LATEST', dateFilter:'ALL', from:null, to:null, category:'', deleting:false, selected:new Set() };
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+/* ===== CSRF (쿠키 fallback → X-XSRF-TOKEN) ===== */
+function getCsrf(){
+  const metaToken  = document.querySelector('meta[name="_csrf"]')?.content || '';
+  const metaHeader = document.querySelector('meta[name="_csrf_header"]')?.content || '';
+  if(metaToken) return {header: metaHeader || 'X-CSRF-TOKEN', token: metaToken};
+  const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  if(m) return {header: 'X-XSRF-TOKEN', token: decodeURIComponent(m[1])};
+  return null;
+}
+
+/* ===== HTTP 유틸 ===== */
+async function http(url, {method='GET', body, headers={}}={}){
+  const base = {'Content-Type':'application/json','Accept':'application/json, text/plain, */*', ...headers};
+  const csrf = (method!=='GET' && method!=='HEAD') ? getCsrf() : null;
+  if(csrf) base[csrf.header] = csrf.token;
+
+  const res = await fetch(url, { method, credentials:'same-origin', headers:base, body:(body!==undefined?JSON.stringify(body):undefined) });
+  if(!res.ok){
+    let msg=''; try{ msg = await res.text(); }catch(e){}
+    throw new Error(msg || res.statusText);
+  }
+  if(res.status===204) return null;
+
+  const ct = (res.headers.get('content-type')||'').toLowerCase();
+  if(ct.includes('application/json')){ try{ return await res.json(); }catch(e){ return null; } }
+  const loc = res.headers.get('location'); if(loc) return {location:loc};
+  try{
+    const text = await res.text(); if(!text) return null;
+    const num = Number(text.trim()); return isNaN(num) ? {text} : {id:num, text};
+  }catch(e){ return null; }
+}
+
+/* ===== 렌더 ===== */
+const pad = n=>String(n).padStart(2,'0');
+const fmtDate = s => !s ? '' : (isNaN(new Date(s)) ? s : `${new Date(s).getFullYear()}-${pad(new Date(s).getMonth()+1)}-${pad(new Date(s).getDate())}`);
+
+function makeRow(dto){
+  const node = document.createElement('div');
+  node.className = 'note';
+  node.dataset.id = dto.noteId;
+
+  // 메모가 비었으면 아코디언을 펼쳤을 때 바로 편집 모드로 시작
+  const showEditor = !(dto.note && dto.note.trim());
+
+  node.innerHTML =
+    '<div class="row gx-3 align-items-center">'
+  +   '<div class="col-stars d-flex align-items-center justify-content-center gap-2">'
+  +     `<button class="star-btn${dto.starred==='Y'?' active':''}" title="별표">★</button>`
+  +     '<input type="checkbox" class="form-check-input select-box">'
+  +   '</div>'
+  +   '<div class="col-jp">'
+  +     `<span class="fw-semibold">${dto.japaneseWord||''}</span>`
+  +     `<span class="text-muted small ms-1">${dto.readingKana||''}</span>`
+  +   '</div>'
+  +   `<div class="col-kr text-muted">${dto.koreanMeaning||''}</div>`
+  +   `<div class="col-cnt text-center">${dto.wrongCount||0}회</div>`
+  +   `<div class="col-date text-center">${fmtDate(dto.lastWrongAt)}</div>`
+  +   `<div class="col-ex example-2lines">${dto.exampleSentenceJp||''}</div>`
+  +   '<div class="col-12 text-end mt-1"><span class="chev">▼</span></div>'
+  + '</div>'
+  + '<div class="collapse mt-2">'
+  +   '<div class="border-top pt-3">'
+  +     (dto.exampleSentenceJp ? '<div class="mb-2"><div class="fw-bold small text-muted">예문(전체)</div><div class="example-full">'+dto.exampleSentenceJp+'</div></div>' : '')
+  +     '<div class="d-flex justify-content-between align-items-center mb-2">'
+  +       '<div class="fw-bold small text-muted">메모</div>'
+  +       `<div><button class="btn btn-sm btn-outline-secondary memo-edit"${showEditor?' disabled':''}>수정</button></div>`
+  +     '</div>'
+  +     `<p class="memo-empty${(dto.note&&dto.note.trim())?' d-none':''}">아직 메모가 없습니다</p>`
+  +     `<div class="memo-read${showEditor ? ' d-none' : ''}">${dto.note||''}</div>`
+  +     `<div class="memo-edit-wrap${showEditor ? '' : ' d-none'}">`
+  +       '<div class="input-group">'
+  +         `<textarea class="form-control memo-text">${dto.note||''}</textarea>`
+  +         '<button class="btn btn-primary save-memo" type="button">저장</button>'
+  +         '<button class="btn btn-outline-secondary cancel-memo" type="button">취소</button>'
+  +       '</div>'
+  +     '</div>'
+  +   '</div>'
+  + '</div>';
+
+  /* 아코디언 */
+  const chev = node.querySelector('.chev');
+  const col  = node.querySelector('.collapse');
+  const bsCol = new bootstrap.Collapse(col, {toggle:false});
+  chev.addEventListener('click', ()=>{ if(chev.textContent.trim()==='▼'){ chev.textContent='▲'; bsCol.show(); } else { chev.textContent='▼'; bsCol.hide(); } });
+
+  /* 별 토글 */
+  node.querySelector('.star-btn').addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    try{
+      const r = await http(`${API_BASE}/${dto.noteId}/star/toggle`, {method:'POST', body:{}});
+      const flag = (r && r.starred) ? r.starred : (btn.classList.contains('active') ? 'N' : 'Y');
+      btn.classList.toggle('active', flag==='Y');
+      dto.starred = flag;
+    }catch(err){
+      alert('별표 토글 실패: '+err.message);
+      console.error(err);
+    }
+  });
+
+  /* 메모 편집/저장/취소 */
+  const btnEdit  = node.querySelector('.memo-edit');
+  const wrapEdit = node.querySelector('.memo-edit-wrap');
+  const viewRead = node.querySelector('.memo-read');
+  const pEmpty   = node.querySelector('.memo-empty');
+  const ta       = node.querySelector('.memo-text');
+
+  // [수정] → 편집 모드 (메모 없을 땐 비활성화 상태)
+  btnEdit.addEventListener('click', ()=>{
+    if (btnEdit.disabled) return;
+    wrapEdit.classList.remove('d-none');
+    viewRead.classList.add('d-none');
+    pEmpty.classList.add('d-none');
+    ta.focus();
+  });
+
+  // [취소] → 읽기 모드 복귀 (비었으면 empty 메시지 표시 + 버튼 비활성)
+  node.querySelector('.cancel-memo').addEventListener('click', ()=>{
+    ta.value = (dto.note||'');
+    wrapEdit.classList.add('d-none');
+    if(ta.value.trim()){
+      viewRead.textContent = ta.value;
+      viewRead.classList.remove('d-none');
+      pEmpty.classList.add('d-none');
+      btnEdit.disabled = false;
+    }else{
+      viewRead.classList.add('d-none');
+      pEmpty.classList.remove('d-none');
+      btnEdit.disabled = true;
+    }
+  });
+
+  // [저장] → 서버 반영 후 상태 갱신 (메모 있으면 버튼 활성)
+  node.querySelector('.save-memo').addEventListener('click', async ()=>{
+    try{
+      const r = await http(`${API_BASE}/${dto.noteId}`, {method:'PATCH', body:{note: ta.value, starred: dto.starred}});
+      const newNote = (r && r.note!=null) ? r.note : ta.value;
+      dto.note = newNote;
+      wrapEdit.classList.add('d-none');
+      if(newNote && newNote.trim()){
+        viewRead.textContent = newNote;
+        viewRead.classList.remove('d-none');
+        pEmpty.classList.add('d-none');
+        btnEdit.disabled = false;
+      }else{
+        viewRead.classList.add('d-none');
+        pEmpty.classList.remove('d-none');
+        btnEdit.disabled = true;
+      }
+    }catch(err){ alert('메모 저장 실패: '+err.message); console.error(err); }
+  });
+
+  /* 삭제 체크박스 */
+  const box = node.querySelector('.select-box');
+  box.addEventListener('change', (e)=>{ const id = Number(node.dataset.id); if(e.target.checked) state.selected.add(id); else state.selected.delete(id); });
+  box.style.display = state.deleting ? 'inline-block' : 'none';
+
+  return node;
+}
+
+function renderList(page){
+  const list = $('#list'); list.innerHTML = '';
+  if(!page.content || page.content.length===0){
+    list.innerHTML = '<div class="text-center text-muted py-5">오답이 없습니다.</div>';
+    $('#pageInfo').textContent = '0 / 0'; $('#prev').disabled = true; $('#next').disabled = true; return;
+  }
+  page.content.forEach(dto => list.appendChild(makeRow(dto)));
+  state.totalPages = page.totalPages;
+  $('#pageInfo').textContent = (page.number+1)+' / '+page.totalPages;
+  $('#prev').disabled = page.number === 0;
+  $('#next').disabled = page.number >= page.totalPages-1;
+}
+
+async function load(p){
+  const qs = new URLSearchParams({page:p, size:state.size, sort:state.sort, dateFilter:state.dateFilter});
+  if(state.category) qs.set('category', state.category);
+  if(state.dateFilter==='CUSTOM'){ if(state.from) qs.set('from', state.from); if(state.to) qs.set('to', state.to); }
+  try{
+    const page = await http(`${API_BASE}/filter?`+qs.toString());
+    state.page = page.number; renderList(page);
+  }catch(err){ console.error(err); alert('목록을 불러오지 못했습니다: '+err.message); }
+}
+
+/* ===== 이벤트 ===== */
+$$('[data-sort]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    $$('[data-sort]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active'); state.sort = btn.dataset.sort; load(0);
+  });
+});
+$$('.dropdown-menu .dropdown-item').forEach(item=>{
+  item.addEventListener('click', ()=>{
+    $$('.dropdown-menu .dropdown-item').forEach(i=>i.classList.remove('active'));
+    item.classList.add('active'); state.category = item.dataset.cat || '';
+    $('#catBtn').textContent = state.category ? ('카테고리·'+state.category) : '카테고리별'; load(0);
+  });
+});
+$('#dateFilter').addEventListener('change', ()=>{
+  state.dateFilter = $('#dateFilter').value; const show = (state.dateFilter==='CUSTOM');
+  $('#from').style.display = show ? 'block' : 'none'; $('#to').style.display = show ? 'block' : 'none';
+});
+$('#apply').addEventListener('click', ()=>{
+  if(state.dateFilter==='CUSTOM'){ state.from = $('#from').value || null; state.to = $('#to').value || null; } else { state.from = state.to = null; }
+  load(0);
+});
+$('#prev').addEventListener('click', ()=> load(Math.max(0, state.page-1)));
+$('#next').addEventListener('click', ()=> load(Math.min(state.totalPages-1, state.page+1)));
+
+$('#btn-delmode').addEventListener('click', ()=>{
+  state.deleting = !state.deleting; state.selected.clear();
+  $$('#list .select-box').forEach(cb=>{ cb.checked=false; cb.style.display = state.deleting ? 'inline-block' : 'none'; });
+  $('#btn-delmode').textContent = state.deleting ? '완료' : '삭제';
+  $('#btn-delete-all').classList.toggle('d-none', !state.deleting);
+  $('#btn-delete-selected').classList.toggle('d-none', !state.deleting);
+});
+$('#btn-delete-all').addEventListener('click', async ()=>{
+  if(!confirm('현재 필터 조건의 모든 오답을 삭제할까요?')) return;
+  try{
+    const p = new URLSearchParams({page:0, size:10000, sort:state.sort, dateFilter:state.dateFilter});
+    if(state.category) p.set('category', state.category);
+    if(state.dateFilter==='CUSTOM'){ if(state.from) p.set('from', state.from); if(state.to) p.set('to', state.to); }
+    const page = await http(`${API_BASE}/filter?`+p.toString());
+    const ids = (page.content||[]).map(v=>v.noteId);
+    if(ids.length===0) return alert('삭제할 항목이 없습니다.');
+    await http(API_BASE, {method:'DELETE', body: ids});
+    load(state.page);
+  }catch(err){ alert('전체 삭제 실패: '+err.message); console.error(err); }
+});
+$('#btn-delete-selected').addEventListener('click', async ()=>{
+  if(state.selected.size===0) return alert('선택된 항목이 없습니다.');
+  if(!confirm(state.selected.size+'개 항목을 삭제할까요?')) return;
+  try{
+    const ids = Array.from(state.selected);
+    await http(API_BASE, {method:'DELETE', body: ids});
+    ids.forEach(id => document.querySelector(`.note[data-id="${id}"]`)?.remove());
+    state.selected.clear();
+  }catch(err){ alert('선택 삭제 실패: '+err.message); console.error(err); }
+});
+
+/* 오답만 퀴즈 시작: QuizView(JSON) 또는 Location 모두 처리 */
+$('#btn-quiz').addEventListener('click', async ()=>{
+  const body = {
+    category: state.category || null,
+    dateFrom: state.dateFilter==='CUSTOM' ? (state.from || null) : null,
+    dateTo:   state.dateFilter==='CUSTOM' ? (state.to   || null) : null,
+    count: 10
+  };
+  try{
+    const res = await http(`${API_BASE}/quiz-start`, {method:'POST', body});
+    let id = res && (res.quizId || res.uuid || res.id);
+    if(!id && res && res.location){
+      const segs = res.location.split('/').filter(Boolean); id = segs[segs.length-1];
+    }
+    if(!id && res && typeof res.text==='string'){
+      const n = Number(res.text.trim()); if(!isNaN(n)) id = n;
+    }
+    if(id) location.href = '/quiz/'+id;
+    else if(res && res.location && /^https?:\/\//.test(res.location)) location.href = res.location;
+    else alert('퀴즈 생성에 실패했습니다.');
+  }catch(err){
+    alert('퀴즈 생성 실패: '+err.message);
+    console.error(err);
+  }
+});
+
+/* 첫 로드 */
+load(0);
+</script>
+</body>
+</html>

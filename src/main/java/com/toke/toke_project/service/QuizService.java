@@ -109,6 +109,7 @@ public class QuizService {
             q.setCorrectAnswer(correctKey);
             q.setCreatedBy(2L); // 관리자 or system
             q.setCreatedAt(LocalDateTime.now());
+            q.setWord(w);
 
             Quiz saved = quizRepo.save(q);
             questions.add(new QuizQuestion(saved.getQuizId(), prompt, options, answerIndex));
@@ -232,14 +233,10 @@ public class QuizService {
     @Transactional
     public GradeResponse grade(String quizUuid, GradeRequest req, Long userId) {
         QuizPaper paper = quizCache.getIfPresent(quizUuid);
-        if (paper == null) {
-            throw new ResponseStatusException(HttpStatus.GONE, "퀴즈가 만료되었거나 존재하지 않습니다.");
-        }
+        if (paper == null) throw new ResponseStatusException(HttpStatus.GONE, "퀴즈가 만료되었거나 존재하지 않습니다.");
 
         int total = paper.questions().size();
-
-        Map<Integer, Integer> answerMap =
-                (req != null && req.answers() != null) ? req.answers() : Collections.emptyMap();
+        Map<Integer, Integer> answerMap = (req != null && req.answers() != null) ? req.answers() : Collections.emptyMap();
 
         int correctCount = 0;
         List<QuestionResult> results = new ArrayList<>();
@@ -248,22 +245,48 @@ public class QuizService {
             QuizQuestion q = paper.questions().get(i);
             Integer pick = answerMap.get(i);
 
-            boolean isCorrect =
-                    (pick != null && pick >= 0 && pick < q.options().size() && q.answerIndex() == pick);
+            boolean isCorrect = (pick != null && pick >= 0 && pick < q.options().size() && q.answerIndex() == pick);
             if (isCorrect) correctCount++;
 
-            String userKey = (pick == null || pick < 0 || pick > 3) ? null : indexToKey(pick);
-
-            // 결과 저장 (quiz_result) — use QuizResultService to ensure wrong-note registration
+            // 저장은 반드시 서비스로! (오답이면 여기서 WrongNote 등록됨)
             QuizResult r = new QuizResult();
             r.setUserId(userId);
             r.setQuizId(q.quizId());
-            r.setUserAnswer(userKey);
+            r.setUserAnswer((pick == null || pick < 0 || pick > 3) ? null : indexToKey(pick));
             r.setIsCorrect(isCorrect ? "Y" : "N");
             r.setCreatedAt(LocalDateTime.now());
+            quizResultService.saveResult(r); // ★ 저장
 
-            // use service which will call wrongNoteService.registerIfNotExists when needed
-            quizResultService.saveResult(r);
+            // ---- 정답 해설/예문 채우기 ----
+            String explain;
+            String ex;
+
+            // Quiz -> Word 추적
+            Word w = null;
+            Optional<Quiz> oq = quizRepo.findById(q.quizId());
+            if (oq.isPresent()) w = oq.get().getWord();
+
+            final String correctText = q.options().get(q.answerIndex());
+            if (w == null) {
+            	w = wordRepo.findAnyByJapaneseOrKorean(correctText).orElse(null);
+            }
+
+            if (w != null) {
+                if (paper.mode() == QuestionMode.JP_TO_KR) {
+                    explain = String.format("'%s'(%s)의 뜻은 '%s' 입니다.",
+                            ns(w.getJapaneseWord()), ns(w.getReadingKana()), ns(w.getKoreanMeaning()));
+                } else {
+                    explain = String.format("'%s'에 해당하는 일본어는 '%s'(%s) 입니다.",
+                            ns(w.getKoreanMeaning()), ns(w.getJapaneseWord()), ns(w.getReadingKana()));
+                }
+                ex = w.getExampleSentenceJp();
+            } else {
+                explain = "해설: 정답을 중심으로 의미 차이를 확인해 보세요.";
+                ex = null;
+            }
+
+            // ---- ★ 각 선지별 해설 생성 ----
+            List<String> optionExplanations = buildOptionExplanations(paper.mode(), q.options(), q.answerIndex());
 
             results.add(new QuestionResult(
                     i,
@@ -271,12 +294,68 @@ public class QuizService {
                     q.options(),
                     pick,
                     q.answerIndex(),
-                    isCorrect
+                    isCorrect,
+                    explain,
+                    ex,
+                    optionExplanations // ★ 추가
             ));
         }
 
         return new GradeResponse(total, correctCount, results);
     }
+
+    /* ===== 각 보기별 해설 생성 ===== */
+    private List<String> buildOptionExplanations(QuestionMode mode, List<String> options, int correctIndex) {
+        List<String> list = new ArrayList<>(options.size());
+        for (int i = 0; i < options.size(); i++) {
+            String opt = options.get(i);
+            String msg;
+
+            // DB에서 해당 보기 텍스트로 Word 추적 시도
+            Word w = wordRepo.findAnyByJapaneseOrKorean(opt).orElse(null);
+
+            if (mode == QuestionMode.JP_TO_KR) {
+                // 보기 = 한국어 뜻
+                if (i == correctIndex) {
+                    if (w != null) {
+                        msg = String.format("정답: '%s'(%s)의 뜻이 바로 '%s'입니다.",
+                                ns(w.getJapaneseWord()), ns(w.getReadingKana()), ns(w.getKoreanMeaning()));
+                    } else {
+                        msg = "정답 의미입니다.";
+                    }
+                } else {
+                    if (w != null) {
+                        msg = String.format("'%s'(%s)의 뜻이 '%s'이므로, 이번 문제의 정답 의미와는 다릅니다.",
+                                ns(w.getJapaneseWord()), ns(w.getReadingKana()), ns(w.getKoreanMeaning()));
+                    } else {
+                        msg = "의미가 유사해 보일 수 있지만, 문맥과 정확한 대응이 다릅니다.";
+                    }
+                }
+            } else { // KR_TO_JP
+                // 보기 = 일본어 표기
+                if (i == correctIndex) {
+                    if (w != null) {
+                        msg = String.format("정답: 한국어 '%s'에 해당하는 일본어가 '%s'(%s)입니다.",
+                                ns(w.getKoreanMeaning()), ns(w.getJapaneseWord()), ns(w.getReadingKana()));
+                    } else {
+                        msg = "정답 일본어 표기입니다.";
+                    }
+                } else {
+                    if (w != null) {
+                        msg = String.format("'%s'(%s)는 '%s'의 의미로, 이번 문제의 한국어 뜻과는 일치하지 않습니다.",
+                                ns(w.getJapaneseWord()), ns(w.getReadingKana()), ns(w.getKoreanMeaning()));
+                    } else {
+                        msg = "형태가 비슷하지만 의미가 다릅니다.";
+                    }
+                }
+            }
+
+            list.add(msg);
+        }
+        return list;
+    }
+
+    private static String ns(String s){ return s==null? "" : s; }
 
     /* -------------------- 내부 유틸: buildOptions, indexToKey, normalizeCategory... -------------------- */
     private List<String> buildOptions(String category, Word target, QuestionMode mode, String correctText) {
@@ -321,4 +400,16 @@ public class QuizService {
     private boolean isAllCategory(String s) {
         return s == null || s.isBlank() || "전체".equals(s);
     }
+
+    @Transactional(readOnly = true)
+    public QuizView getViewByUuid(String uuid) {
+        var paper = quizCache.getIfPresent(uuid);
+        if (paper == null) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.GONE, "퀴즈가 만료되었습니다.");
+        var items = paper.questions().stream()
+                .map(q -> new com.toke.toke_project.web.dto.QuizViewItem(q.prompt(), q.options()))
+                .toList();
+        return new com.toke.toke_project.web.dto.QuizView(uuid, paper.category(), paper.mode(), items);
+    }
+
 }
