@@ -1,9 +1,142 @@
 @charset "UTF-8";
 
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");
+@import
+	url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css")
+	;
 
 body {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui,
-               Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo',
-               'Noto Sans KR', 'Malgun Gothic', sans-serif;
+	font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui,
+		Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo',
+		'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+
+/* 카드 자동 스라이더 효과 */
+.slider {
+	height: 500px;
+	margin: auto;
+	position: relative;
+	width: 100%;
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+}
+
+.slide-track {
+	display: flex;
+	width: calc(300px * 12); /* 카드 갯수에 따라 계산 */
+	animation: scroll 40s linear infinite;
+
+}
+
+.slide-track:hover {
+	animation-play-state: paused;
+}
+
+@keyframes scroll{
+  0% {
+    transform: translateX(0);
+  }
+  100%{
+    transform: translateX(calc(-300px * 6));
+  }
+}
+
+.slide {
+	height: 400px;
+	width: 300px;
+	display: flex;
+	align-items: center;
+	padding: 15px;
+	perspective: 100px;
+}
+
+.train-card {
+  width: 100%;
+  height: 400px;
+  transition: transform 1s;
+  border-radius: 10px;
+  overflow: hidden;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  padding: 30px;
+  cursor: pointer;
+
+  /* Flexbox로 중앙 정렬 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+
+  /* 부모 요소에 relative 위치 설정 */
+  position: relative; 
+}
+
+.train-card:hover {
+  transform: translateZ(8px);
+}
+
+
+.train-card-link {
+	width: 100%;
+	text-decoration: none;
+	transition: transform 0.3s ease;  /* 부드러운 크기 변화 */
+        } 
+        
+ .train-card-link:hover {
+  transform: translateZ(8px);
+}
+
+
+.train-card h3 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 15px; /* 제목과 설명 사이에 간격 추가 */
+}
+
+.train-card p {
+  font-size: 1rem;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.train-card .tags {
+  position: absolute;
+  bottom: 10px; /* 카드 하단에서 10px 위로 위치 */
+  left: 20px;  /* 카드 왼쪽에서 30px 떨어지게 위치 */
+  text-align: left; 
+  color: #fff; /* 해시태그 텍스트 왼쪽 정렬 */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.train-card .tag {
+	background-color: #000;
+	border-radius: 20px;
+	padding: 5px 10px;
+	font-size: 0.85rem;
+	color: #fff;
+	
+}
+
+
+/* 슬라이더 그라데이션 그림자 */
+.slider::before, .slider::after {
+	content: '';
+	height: 100%;
+	position: absolute;
+	width: 15%;
+	z-index: 2;
+}
+
+.slider::before {
+	left: 0;
+	top: 0;
+}
+
+.slider::after {
+	right: 0;
+	top: 0;
+	transform: rotateZ(180deg);
 }

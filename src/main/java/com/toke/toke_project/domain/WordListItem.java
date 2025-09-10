@@ -39,5 +39,10 @@ public class WordListItem {
 
     @Column(name="created_at", insertable=false, updatable=false)
     private LocalDateTime createdAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+    }
 }
 

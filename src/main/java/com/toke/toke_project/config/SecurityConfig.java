@@ -46,8 +46,11 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/qna/*/reply").hasRole("ADMIN")
 
 						// --- 모두의 단어장 ---
-						.requestMatchers(HttpMethod.GET, "/lists", "/lists/*", "/lists/search").permitAll()
-						.requestMatchers("/lists/**").authenticated()
+						.requestMatchers(HttpMethod.GET, "/lists", "/lists/*").authenticated()  // 인증된 사용자만 접근
+			            .requestMatchers("/lists/search").authenticated()  // 검색도 인증된 사용자만 접근
+						
+						 // --- 오답노트 ---
+					    .requestMatchers("/wrong-notes/**").authenticated()
 
 						// --- 오답 퀴즈 ---
 						.requestMatchers("/wrong-quiz/**").authenticated()
@@ -72,10 +75,18 @@ public class SecurityConfig {
 
 						// 그 외 전부 인증
 						.anyRequest().authenticated())
-				.formLogin(login -> login.loginPage("/login").loginProcessingUrl("/login").usernameParameter("email")
-						.passwordParameter("password").defaultSuccessUrl("/", false).failureUrl("/login?error=true")
+						.formLogin(login -> login.loginPage("/login")
+						.loginProcessingUrl("/login")
+						.usernameParameter("email")
+						.passwordParameter("password")
+						.defaultSuccessUrl("/lists/search", false)
+						.failureUrl("/login?error=true")
 						.permitAll())
-				.logout(logout -> logout.logoutUrl("/logout").logoutSuccessUrl("/login?logout=true").permitAll());
+						
+						
+						.logout(logout -> logout
+						.logoutUrl("/logout")
+						.logoutSuccessUrl("/login?logout=true").permitAll());
 
 		return http.build();
 	}

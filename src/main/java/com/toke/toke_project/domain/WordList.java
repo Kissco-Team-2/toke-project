@@ -3,6 +3,8 @@ package com.toke.toke_project.domain;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "word_list")
@@ -26,5 +28,20 @@ public class WordList {
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
+    
+ // Many-to-Many 관계 설정: 단어장과 태그의 관계를 매핑
+    @ManyToMany(fetch = FetchType.EAGER) // Eager Loading으로 변경
+    @JoinTable(
+        name = "word_list_tag", 
+        joinColumns = @JoinColumn(name = "list_id"), 
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Hashtag> tags = new HashSet<>();
+
+    
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+    }
 }
 
