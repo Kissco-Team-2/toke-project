@@ -9,8 +9,9 @@
 	rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <style>
-.meta {
-	color: #666;
+body {
+	background: #fffefe;
+	font-family: 'Pretendard', sans-serif;
 }
 
 .tags {
@@ -25,56 +26,68 @@
 	display: inline-block;
 }
 
-.section {
-	margin-top: 20px;
-	padding: 16px;
-	border: 1px solid #eee;
-	border-radius: 8px;
+.word-box {
 	background: #fff;
+	border-radius: 16px;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+	position: relative;
+	margin-bottom: 1rem;
+	padding: 1rem;
 }
 
-.items {
-	margin-top: 12px;
+ul {
+	list-style: none;
+	padding-left: 0;
+	margin: 0;
 }
 
-.item {
-	padding: 10px;
-	border-bottom: 1px solid #f0f0f0;
+.accordion {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.accordion__li {
+	width: 100%;
+	background: white;
+	border-radius: 0.4rem;
+	display: flex;
+	flex-direction: column;
+}
+
+.accordion__title {
+	font-size: 1.2rem;
+	font-weight: 600;
 	display: flex;
 	justify-content: space-between;
-	gap: 12px;
+	cursor: pointer;
+	padding: 0.5rem 1rem;
 }
 
-.item .left {
-	max-width: 75%;
+.accordion__content {
+	font-size: 1rem;
+	line-height: 1.5;
+	max-height: 0;
+	overflow: hidden;
+	transition: max-height .3s ease, padding .3s ease;
+	padding: 0 1rem;
+	border-top: none;
 }
 
-.small {
-	font-size: 0.9em;
-	color: #666;
-	gap: 5px;
+.accordion__content.open {
+	max-height: 500px; /* 충분히 크게 설정 */
+	border-top: 1px solid #eee;
+	padding-top: 1rem;
 }
 
-form.inline {
-	display: inline-block;
-	margin-left: 8px;
+/* 닫혔을 때 내부 버튼 숨김 */
+.accordion__content .accordion-actions {
+	display: none;
 }
 
-input[type=text], textarea {
-	width: 100%;
-	padding: 8px;
-	margin-top: 6px;
-	box-sizing: border-box;
-}
-
-.two-col {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 12px;
-}
-
-.btn-danger {
-	background: #d9534f;
+.accordion__content.open .accordion-actions {
+	display: flex;
+	gap: 0.5rem;
 }
 </style>
 </head>
@@ -85,35 +98,152 @@ input[type=text], textarea {
 		<div class="container mt-5">
 			<h2 class="text-center mb-4 fw-bold" th:text="${list.listName}">단어장
 				이름</h2>
-			<div class="meta d-flex justify-content-between">
-				<span th:text="${list.description}">설명</span>
+			<div
+				class="meta d-flex flex-column align-items-center justify-content-center">
+				<p th:text="${list.description}">설명</p>
+				<span th:each="t : ${listTags != null ? listTags : {}}"
+					th:text="${t}" class="tag">태그</span>
+			</div>
+			<div class="tags d-flex justify-content-end">
 
-				<div class="tags">
-					<span th:each="t : ${listTags != null ? listTags : {}}"
-						th:text="${t}" class="tag">태그</span>
-
-				</div>
 				<div class="small">
-					생성일: <span
-						th:text="${list.createdAt != null ? #temporals.format(list.createdAt, 'yyyy-MM-dd HH:mm') : '-'}">2024-01-01
-					</span>
+
 					<button type="button" class="btn btn-soft-green"
-						data-bs-toggle="modal" data-bs-target="#new_mywords_modal">
-						추가</button>
+						data-bs-toggle="modal" data-bs-target="#new_mywords_modal"
+						style="margin-right: .8rem;">새 단어 추가</button>
 				</div>
 			</div>
-		</div>
 
-		<!-- 모달을 불러오는 부분 -->
-		<div th:replace="fragments/new_mywords_modal :: new_mywords_modal"></div>
 
+			<!-- 정렬 탭 -->
+			<!-- 	<div class="container" style="padding: 20px;">
+				<div class="d-flex gap-2 mb-3">
+					<a th:href="@{/words(mode='ko', q=${q}, category=${category})}"
+						class="tab-btn" th:classappend="${mode=='ko'}? ' active'">가나다순</a>
+					<a th:href="@{/words(mode='ja', q=${q}, category=${category})}"
+						class="tab-btn" th:classappend="${mode=='ja'}? ' active'">히라가나순</a>
+					<a th:href="@{/words(mode='cat', q=${q})}" class="tab-btn"
+						th:classappend="${mode=='cat'}? ' active'">카테고리별</a> <a
+						th:href="@{/words(mode='recent', q=${q}, category=${category})}"
+						class="tab-btn" th:classappend="${mode=='recent'}? ' active'">최근
+						등록순</a>
+				</div> -->
+
+			<div class="container p-2">
+				<!-- 한글 인덱스: 가나다순 모드일 때만 -->
+				<div th:if="${mode == 'ko'}" class="hangeul-index mb-3">
+					<a th:each="g : ${'가,나,다,라,마,바,사,아,자,차,카,타,파,하'.split(',')}"
+						th:href="@{/words(mode='ko', group=${g}, q=${q}, category=${category})}"
+						th:text="${g}" class="index-link"></a>
+				</div>
+
+				<!-- 일본어 인덱스: 히라가나순 모드일 때만 -->
+				<div th:if="${mode == 'ja'}" class="kana-index mb-3">
+					<a th:each="g : ${'あ,か,さ,た,な,は,ま,や,ら,わ'.split(',')}"
+						th:href="@{/words(mode='ja', group=${g}, q=${q}, category=${category})}"
+						th:text="${g}" class="index-link"></a>
+				</div>
+
+
+
+				<div class="p-2">
+
+					<div th:if="${#lists.isEmpty(items)}"
+						class="text-center text-muted my-4">목록에 추가된 표현이 없습니다.</div>
+
+
+					<div th:each="w, iterStat : ${items}" class="word-box">
+						<ul class="accordion">
+							<li class="accordion__li">
+								<!-- 클릭 버튼 -->
+								<div class="accordion__title toggle-accordion">
+									<span th:text="${w.customJapaneseWord}">ご連絡ありがとうございます。</span> <span
+										th:text="${w.customReadingKana}">ごれんらくありがとうございます。</span>
+								</div> <!-- 아코디언 내용 -->
+								<div class="accordion__content">
+									<p>
+										<b>[한국어 뜻]</b> <span th:text="${w.customKoreanMeaning}">연락
+											감사합니다.</span>
+									</p>
+									<p>
+										<b>[예문]</b> <span th:text="${w.customExampleSentenceJp}">送っていただいた資料を確認しました。</span>
+									</p>
+
+									<div th:if="${me != null and w.wordList.owner.id == me}"
+										class="accordion-actions mt-2 d-flex justify-content-end">
+										<a href="javascript:void(0)" class="btn btn-sm"
+											data-bs-toggle="modal" data-bs-target="#edit_mywords_modal"
+											th:attr="data-id=${w.id},
+								            data-jp=${w.customJapaneseWord},
+								            data-kana=${w.customReadingKana},
+								            data-kr=${w.customKoreanMeaning},
+								            data-ex=${w.customExampleSentenceJp}">
+											수정 </a>
+
+										<form th:action="@{|/lists/${list.id}/items/${w.id}/delete|}"
+											method="post" class="d-inline">
+											<button type="submit" class="btn btn-sm">삭제</button>
+										</form>
+									</div>
+								</div>
+							</li>
+						</ul>
+					</div>
+				</div>
+
+
+				<!-- 모달을 불러오는 부분 -->
+				<div th:replace="fragments/new_mywords_modal :: new_mywords_modal"></div>
+				<div th:replace="fragments/edit_mywords_modal :: edit_mywords_modal"></div>
 	</main>
 
 	<footer th:replace="fragments/footer :: site-footer"
 		class="mt-auto bg-dark text-white"
 		style="margin-top: 0; padding-top: 0; background: #000;"></footer>
 
+	<script src="https://kit.fontawesome.com/70e0dc75f1.js"
+		crossorigin="anonymous"></script>
+
 	<script
 		src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+	<script>
+// 여러 개 동시에 열릴 수 있게 토글
+document.querySelectorAll(".toggle-accordion").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const content = btn.nextElementSibling;
+    content.classList.toggle("open");
+  });
+});
+</script>
+<!-- ✅ 반드시 th:inline="javascript" -->
+<script th:inline="javascript">
+document.addEventListener("DOMContentLoaded", function() {
+  const listId = [[${list.id}]];                   // ← 치환되어 숫자로 들어옴
+  const editModal = document.getElementById('edit_mywords_modal');
+  const form = document.getElementById('editWordForm');
+
+  editModal.addEventListener('show.bs.modal', function (event) {
+    const btn = event.relatedTarget;               // 수정 버튼
+    if (!btn) return;
+
+    const id   = btn.getAttribute('data-id');
+    const jp   = btn.getAttribute('data-jp')   || '';
+    const kana = btn.getAttribute('data-kana') || '';
+    const kr   = btn.getAttribute('data-kr')   || '';
+    const ex   = btn.getAttribute('data-ex')   || '';
+
+    // 입력값 채우기
+    document.getElementById('editJp').value   = jp;
+    document.getElementById('editKana').value = kana;
+    document.getElementById('editKr').value   = kr;
+    document.getElementById('editEx').value   = ex;
+
+    // ✅ 컨트롤러에 맞춤: /editCustom 로 설정
+    form.action = `/lists/${listId}/items/${id}/editCustom`;
+  });
+});
+</script>
+
 </body>
 </html>

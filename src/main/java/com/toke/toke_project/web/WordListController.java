@@ -89,7 +89,7 @@ public class WordListController {
 
 	// --- 상세 (공개) ---
 	@GetMapping("/{id}")
-	public String detail(@PathVariable Long id, Model model) {
+	public String detail(@PathVariable Long id, Principal principal, Model model) {
 	    var map = wordListService.getDetail(id);
 	    WordList wl = (WordList) map.get("list");
 
@@ -99,6 +99,11 @@ public class WordListController {
 	    model.addAttribute("listTags", wl.getTags()); 
 	    model.addAttribute("customWordForm", new CustomWordForm());
 	    
+	    if(principal != null){
+	        Long me = currentUserId(principal); // 로그인 사용자 ID 가져오기
+	        model.addAttribute("me", me);
+	    }
+
 
 	    return "lists/detail";  // detail.html에서 modal 포함
 	}
