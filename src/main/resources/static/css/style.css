@@ -31,65 +31,16 @@ body {
 	animation-play-state: paused;
 }
 
-@keyframes scroll { 0% {
-	transform: translateX(0);
+
+@keyframes scroll{
+  0% {
+    transform: translateX(0);
+  }
+  100%{
+    transform: translateX(calc(-300px * 6));
+  }
 }
 
-100%
-{
-transform
-
-
-
-
-:
-
-
-
-
-translateX
-
-
-(
-
-
-
-
-calc
-
-
-(
-
-
-
-
--300px
-
-
-
-
-*
-
-
- 
-
-
-6
-
-
-
-
-)
-
-
-
-
-)
-
-
-;
-}
-}
 .slide {
 	height: 400px;
 	width: 300px;

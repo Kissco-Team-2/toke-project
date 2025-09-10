@@ -19,11 +19,13 @@ body {
 }
 
 .tag {
-	background: #ffd;
+	background: #a6b4ff;
+	color: #fff;
 	padding: 6px 8px;
 	border-radius: 12px;
 	margin-right: 6px;
 	display: inline-block;
+	padding: 6px 8px;
 }
 
 .word-box {
@@ -101,8 +103,10 @@ ul {
 			<div
 				class="meta d-flex flex-column align-items-center justify-content-center">
 				<p th:text="${list.description}">설명</p>
-				<span th:each="t : ${listTags != null ? listTags : {}}"
-					th:text="${t}" class="tag">태그</span>
+				<div class="tags d-flex justify-content-center mt-2">
+					<span th:each="t : ${listTags != null ? listTags : {}}"
+						th:text="${'#' + t.tagName}" class="tag">#태그</span>
+				</div>
 			</div>
 			<div class="tags d-flex justify-content-end">
 
@@ -110,7 +114,7 @@ ul {
 
 					<button type="button" class="btn btn-soft-green"
 						data-bs-toggle="modal" data-bs-target="#new_mywords_modal"
-						style="margin-right: .8rem;">새 단어 추가</button>
+						style="margin-right: .8rem;">새 표현 추가</button>
 				</div>
 			</div>
 
@@ -157,16 +161,20 @@ ul {
 							<li class="accordion__li">
 								<!-- 클릭 버튼 -->
 								<div class="accordion__title toggle-accordion">
-									<span th:text="${w.customJapaneseWord}">ご連絡ありがとうございます。</span> <span
-										th:text="${w.customReadingKana}">ごれんらくありがとうございます。</span>
+									<span th:text="${w.word?.japaneseWord ?: w.customJapaneseWord}">
+										ご連絡ありがとうございます。 </span> <span
+										th:text="${w.word?.readingKana ?: w.customReadingKana}">
+										ごれんらくありがとうございます。 </span>
 								</div> <!-- 아코디언 내용 -->
 								<div class="accordion__content">
 									<p>
-										<b>[한국어 뜻]</b> <span th:text="${w.customKoreanMeaning}">연락
+										<b style="color: #6155F5;">[한국어 뜻]</b> <span
+											th:text="${w.word?.koreanMeaning ?: w.customKoreanMeaning}">>연락
 											감사합니다.</span>
 									</p>
 									<p>
-										<b>[예문]</b> <span th:text="${w.customExampleSentenceJp}">送っていただいた資料を確認しました。</span>
+										<b style="color: #6155F5;">[예문]</b> <span
+											th:text="${w.word?.exampleSentenceJp ?: w.customExampleSentenceJp}">送っていただいた資料を確認しました。</span>
 									</p>
 
 									<div th:if="${me != null and w.wordList.owner.id == me}"
@@ -216,8 +224,8 @@ document.querySelectorAll(".toggle-accordion").forEach(btn => {
   });
 });
 </script>
-<!-- ✅ 반드시 th:inline="javascript" -->
-<script th:inline="javascript">
+	<!-- ✅ 반드시 th:inline="javascript" -->
+	<script th:inline="javascript">
 document.addEventListener("DOMContentLoaded", function() {
   const listId = [[${list.id}]];                   // ← 치환되어 숫자로 들어옴
   const editModal = document.getElementById('edit_mywords_modal');

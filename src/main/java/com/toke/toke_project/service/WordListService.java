@@ -92,6 +92,18 @@ public class WordListService {
 		return it.getId();
 	}
 
+	@Transactional
+	public void addWordsToMyList(Long listId, Long ownerId, List<Long> wordIds) {
+		WordList wl = wordListRepo.findById(listId).orElseThrow();
+		if (!wl.getOwner().getId().equals(ownerId)) {
+			throw new SecurityException("권한 없음");
+		}
+
+		for (Long wordId : wordIds) {
+			addItemAsCustomCopy(listId, ownerId, wordId);
+		}
+	}
+
 	/* 커스텀 단어 추가 */
 	@Transactional
 	public Long addCustomItem(Long listId, Long ownerId, String jp, String kana, String kr, String ex) {
@@ -108,6 +120,32 @@ public class WordListService {
 		itemRepo.save(it);
 		return it.getId();
 	}
+	
+	@Transactional
+	public Long addItemAsCustomCopy(Long listId, Long ownerId, Long wordId) {
+	    WordList wl = wordListRepo.findById(listId).orElseThrow();
+	    if (!wl.getOwner().getId().equals(ownerId)) {
+	        throw new SecurityException("권한 없음");
+	    }
+	    Word w = wordRepo.findById(wordId).orElseThrow();
+
+	    WordListItem it = new WordListItem();
+	    it.setWordList(wl);
+
+	    // 공식 단어 내용을 커스텀 필드로 복사
+	    it.setCustomJapaneseWord(w.getJapaneseWord());
+	    it.setCustomReadingKana(w.getReadingKana());
+	    it.setCustomKoreanMeaning(w.getKoreanMeaning());
+	    it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
+
+	    // Word 참조는 null 처리 (공식 연결 안 함)
+	    it.setWord(null);
+
+	    itemRepo.save(it);
+	    return it.getId();
+	}
+
+	
 
 	/* 항목 삭제(본인만) */
 	@Transactional
@@ -159,7 +197,15 @@ public class WordListService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<WordList> findMine(Long ownerId) {
+	public List<WordList> findMine(Long ownerId, String keyword, String tag) {
+		logger.debug("내 단어장 검색: ownerId={}, keyword={}, tag={}", ownerId, keyword, tag);
+
+		if (tag != null && !tag.isBlank()) {
+			return wordListRepo.findByOwnerIdAndTagNormalized(ownerId, tag.toLowerCase());
+		}
+		if (keyword != null && !keyword.isBlank()) {
+			return wordListRepo.findByOwnerIdAndListNameContainingIgnoreCase(ownerId, keyword.toLowerCase());
+		}
 		return wordListRepo.findByOwner_Id(ownerId);
 	}
 
@@ -168,10 +214,21 @@ public class WordListService {
 	public Map<String, Object> getDetail(Long listId) {
 		WordList wl = wordListRepo.findById(listId).orElseThrow();
 
-		// 지연 로딩 문제 해결: tags를 미리 로딩
-		wl.getTags().size(); // tags 컬렉션을 강제로 초기화
+		// tags 강제 초기화
+		wl.getTags().size();
 
 		List<WordListItem> items = itemRepo.findByWordList_IdOrderByIdAsc(listId);
+
+		// 공식 단어 word 강제 초기화
+		for (WordListItem it : items) {
+			if (it.getWord() != null) {
+				it.getWord().getJapaneseWord(); // 접근해서 초기화
+				it.getWord().getKoreanMeaning();
+				it.getWord().getReadingKana();
+				it.getWord().getExampleSentenceJp();
+			}
+		}
+
 		Map<String, Object> res = new HashMap<>();
 		res.put("list", wl);
 		res.put("items", items);
@@ -180,48 +237,43 @@ public class WordListService {
 
 	/* 검색: 제목/닉네임/태그 */
 	@Transactional(readOnly = true)
-    public List<WordList> search(String title, String nickname, String tag) {
-        Set<WordList> resultSet = new LinkedHashSet<>();
-        logger.debug("검색 시작: title={}, nickname={}, tag={}", title, nickname, tag);
+	public List<WordList> search(String title, String nickname, String tag) {
+		Set<WordList> resultSet = new LinkedHashSet<>();
+		logger.debug("검색 시작: title={}, nickname={}, tag={}", title, nickname, tag);
 
-        if (title != null && !title.isBlank()) {
-            resultSet.addAll(wordListRepo.searchByTitle(title.trim()));
-            logger.debug("제목 검색 결과: {}", resultSet.size());
-        }
+		if (title != null && !title.isBlank()) {
+			resultSet.addAll(wordListRepo.searchByTitle(title.trim().toLowerCase()));
+		}
 
-        if (nickname != null && !nickname.isBlank()) {
-            resultSet.addAll(wordListRepo.searchByOwnerNickname(nickname.trim()));
-            logger.debug("닉네임 검색 결과: {}", resultSet.size());
-        }
+		if (nickname != null && !nickname.isBlank()) {
+			resultSet.addAll(wordListRepo.searchByOwnerNickname(nickname.trim().toLowerCase()));
+		}
 
-        if (tag != null && !tag.isBlank()) {
-            resultSet.addAll(wordListRepo.searchByTagNormalized(normalizeTag(tag)));
-            logger.debug("태그 검색 결과: {}", resultSet.size());
-        }
+		if (tag != null && !tag.isBlank()) {
+			resultSet.addAll(wordListRepo.searchByTagNormalized(tag.toLowerCase()));
+		}
 
-        if (resultSet.isEmpty()) {
-            logger.debug("검색 결과가 없습니다.");
-            return wordListRepo.findAll();  // 모든 단어장 반환
-        }
+		if (resultSet.isEmpty()) {
+			return wordListRepo.findAll();
+		}
 
-        logger.debug("최종 검색된 단어장 수: {}", resultSet.size());
-        return new ArrayList<>(resultSet);
-    }
+		return new ArrayList<>(resultSet);
+	}
 
-	  // 태그 정규화: 소문자 + 한글/영문/숫자만 남기고 나머지 제거
-    private static final Pattern KEEP = Pattern.compile("[^0-9A-Za-z가-힣]");
+	// 태그 정규화: 소문자 + 한글/영문/숫자만 남기고 나머지 제거
+	private static final Pattern KEEP = Pattern.compile("[^0-9A-Za-z가-힣]");
 
-    private String normalizeTag(String raw) {
-        if (raw == null || raw.trim().isEmpty()) {
-            return "";
-        }
-        String s = Normalizer.normalize(raw, Normalizer.Form.NFKC).toLowerCase(Locale.KOREA).trim();
-        s = KEEP.matcher(s).replaceAll("");
-        if (s.length() > 50) {
-            s = s.substring(0, 50);
-        }
-        return s;
-    }
+	private String normalizeTag(String raw) {
+		if (raw == null || raw.trim().isEmpty()) {
+			return "";
+		}
+		String s = Normalizer.normalize(raw, Normalizer.Form.NFKC).toLowerCase(Locale.KOREA).trim();
+		s = KEEP.matcher(s).replaceAll("");
+		if (s.length() > 50) {
+			s = s.substring(0, 50);
+		}
+		return s;
+	}
 
 	/* 공식 -> 커스텀 사본 전환 (소유자만) */
 	@Transactional
