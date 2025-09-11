@@ -8,6 +8,13 @@
 	rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <title th:text="${title} ?: 'TOKE'">TOKE</title>
+<style>
+.dropdown-item {
+	margin-top: 10px;
+	margin-bottom: 10px;
+	text-align: center;
+}
+</style>
 </head>
 
 <body>
@@ -20,10 +27,25 @@
 				<div class="collapse navbar-collapse">
 					<ul class="navbar-nav ms-auto mb-2 mb-lg-0">
 						<li class="nav-item"><a class="nav-link" href="/lists">단어장</a></li>
-					<li class="nav-item" sec:authorize="isAuthenticated()"><a
+						<li class="nav-item" sec:authorize="isAuthenticated()"><a
 							class="nav-link" href="/wrong-notes">오답노트</a></li>
-						<li class="nav-item"><a class="nav-link" href="/words">일본어 표현</a></li>
-						<li class="nav-item"><a class="nav-link" href="/quiz/category">퀴즈</a></li>
+						<li class="nav-item dropdown"><a
+							class="nav-link dropdown-toggle" href="#" id="navbarDropdown"
+							role="button" data-bs-toggle="dropdown" aria-expanded="false">일본어
+								표현</a>
+							<ul class="dropdown-menu" aria-label="navbarDropdown">
+								<li><a class="dropdown-item"
+									th:href="@{/words(mode='ko', q=${q}, category=${category})}">가나다순</a></li>
+								<li><a class="dropdown-item"
+									th:href="@{/words(mode='ja', q=${q}, category=${category})}">히라가나순</a></li>
+								<li><a class="dropdown-item"
+									th:href="@{/words(mode='cat', q=${q}, category=${category})}">카테고리별</a></li>
+								<li><a class="dropdown-item"
+									th:href="@{/words(mode='recent', q=${q}, category=${category})}">최근
+										등록순</a></li>
+							</ul></li>
+						<li class="nav-item"><a class="nav-link"
+							href="/quiz/category">퀴즈</a></li>
 						<li class="nav-item"><a class="nav-link" href="#">문의</a></li>
 						<li class="nav-item" sec:authorize="isAuthenticated()"><a
 							class="nav-link" href="#">마이페이지</a></li>
