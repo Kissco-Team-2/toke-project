@@ -1,23 +1,53 @@
 package com.toke.toke_project.repo;
 
 import com.toke.toke_project.domain.Qna;
-import org.springframework.data.jpa.repository.*;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-@Repository
 public interface QnaRepository extends JpaRepository<Qna, Long> {
 
-    // 공개글 + 내가 쓴 비밀글 포함 목록
-    @Query("""
-      select q from Qna q 
-      where q.isSecret='N' or q.author.id = :myId
-      order by q.createdAt desc
-    """)
-    List<Qna> listVisibleForUser(Long myId);
+    /* ===== 목록(비페이지) ===== */
 
-    // 관리자: 전체
-    @Query("select q from Qna q order by q.createdAt desc")
+    /** 관리자: 전부 (최신순) */
+    @Query("""
+           select q
+             from Qna q
+            order by q.id desc
+           """)
     List<Qna> listAllForAdmin();
+
+    /** 일반사용자: 비밀글이 아니거나 내 글 (최신순) */
+    @Query("""
+           select q
+             from Qna q
+            where q.isSecret = 'N'
+               or q.author.id = :myId
+            order by q.id desc
+           """)
+    List<Qna> listVisibleForUser(@Param("myId") Long myId);
+
+    /* ===== 목록(페이지) ===== */
+
+    /** 관리자: 전부 페이징 */
+    @Query("""
+           select q
+             from Qna q
+            order by q.id desc
+           """)
+    Page<Qna> pageAllForAdmin(Pageable pageable);
+
+    /** 일반사용자: 비밀글이 아니거나 내 글 페이징 */
+    @Query("""
+           select q
+             from Qna q
+            where q.isSecret = 'N'
+               or q.author.id = :myId
+            order by q.id desc
+           """)
+    Page<Qna> pageVisibleForUser(@Param("myId") Long myId, Pageable pageable);
 }
