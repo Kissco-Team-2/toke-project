@@ -28,7 +28,7 @@ public class WordController {
 	private final WordListService wordListService; // ✅ 추가
 	private final UsersRepository usersRepo;
 
-    @GetMapping
+	@GetMapping
 	public String list(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String category,
 			@RequestParam(defaultValue = "recent") String mode, @RequestParam(defaultValue = "") String group,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
@@ -52,4 +52,19 @@ public class WordController {
 		return "words/list";
 	}
 
+	@GetMapping("/words")
+	public String listWords(@RequestParam(required = false) String mode, @RequestParam(required = false) String q,
+			@RequestParam(required = false) String category, @RequestParam(required = false) int page,
+			@RequestParam(required = false) int size, Model model) {
+		// 'mode'에 맞춰 단어 목록을 정렬
+		Page<Word> words = wordService.search(q, category, mode, null, page, size);
+
+		// 페이지에 단어 목록과 기타 필요한 데이터를 모델에 추가
+		model.addAttribute("words", words.getContent());
+		model.addAttribute("q", q);
+		model.addAttribute("category", category);
+		model.addAttribute("mode", mode);
+
+		return "list"; // list.html로 반환
+	}
 }

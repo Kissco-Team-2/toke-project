@@ -80,7 +80,7 @@ public class SecurityConfig {
 						.loginProcessingUrl("/login")
 						.usernameParameter("email")
 						.passwordParameter("password")
-						.defaultSuccessUrl("/lists/search", false)
+						.defaultSuccessUrl("/", false)
 						.failureUrl("/login?error=true")
 						.permitAll())
 						
