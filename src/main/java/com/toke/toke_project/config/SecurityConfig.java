@@ -44,6 +44,8 @@ public class SecurityConfig {
 	    		    .requestMatchers(HttpMethod.POST, "/qna").authenticated()           // 작성
 	    		    .requestMatchers(HttpMethod.POST, "/qna/*/reply").hasRole("ADMIN")  // 관리자 답변
 	    		    .requestMatchers(HttpMethod.POST, "/qna/*/close").authenticated()   // (있다면) 닫기
+	    		    .requestMatchers(HttpMethod.GET,  "/qna/*/edit").authenticated()
+	    		    .requestMatchers(HttpMethod.POST, "/qna/*/edit").authenticated()
 
 	    		    // 목록/상세는 공개 (※ 폼보다 아래에 둬야 함)
 	    		    .requestMatchers(HttpMethod.GET, "/qna", "/qna/*").permitAll()
