@@ -35,10 +35,6 @@ public class Qna {
     @Column(name="is_secret", length=1)
     private String isSecret = "N";   // 'Y'/'N'
 
-    @Lob
-    @Column(name="reply")
-    private String reply;            // 관리자 답변
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "answered_by")
     private Users answeredBy;        // 답변 관리자

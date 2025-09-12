@@ -83,6 +83,39 @@ public class QnaController {
         model.addAttribute("titleMine", isOwner);
         return "qna/detail";
     }
+    
+    @GetMapping("/{id}/edit")
+    public String editForm(@PathVariable Long id,
+                           Authentication authentication,
+                           Model model) {
+        Long me = currentUserId(authentication);
+        boolean isAdmin = hasRole(authentication, "ROLE_ADMIN");
+
+        // 수정 권한 체크 (소유자 or 관리자)
+        if (!isAdmin && !qnaService.isOwner(id, me)) {
+            throw new AccessDeniedException("수정 권한이 없습니다.");
+        }
+
+        // 상세 데이터 불러와 폼에 바인딩
+        QnaDetailView q = qnaService.detailForUser(id, me, isAdmin);
+        model.addAttribute("q", q);
+        return "qna/edit"; // -> templates/qna/edit.html
+    }
+
+    @PostMapping("/{id}/edit")
+    public String edit(@PathVariable Long id,
+                       Authentication authentication,
+                       @RequestParam String category,
+                       @RequestParam String title,
+                       @RequestParam String content,
+                       @RequestParam(name="secret", defaultValue="off") String secretFlag) {
+        Long me = currentUserId(authentication);
+        boolean isAdmin = hasRole(authentication, "ROLE_ADMIN");
+        boolean secret = "on".equalsIgnoreCase(secretFlag) || "true".equalsIgnoreCase(secretFlag);
+
+        qnaService.update(id, me, isAdmin, category, title, content, secret);
+        return "redirect:/qna/" + id;
+    }
 
     /* ===== 관리자 답변 등록 (POST /qna/{id}/reply) ===== */
     @PostMapping("/{id}/reply")
