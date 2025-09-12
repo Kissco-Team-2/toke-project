@@ -16,8 +16,7 @@ public record QnaDetailView(
         LocalDateTime createdAt,
 
         // 작성자 / 답변자 표시 이름
-        String authorDisplay,
-        String answeredByDisplay,
+        String authorDisplay
 
-        LocalDateTime answeredAt
+        
 ) {}

@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -34,6 +35,7 @@ public class WordListController {
 	@GetMapping
 	public String all(@RequestParam(value = "keyword", required = false) String keyword,
 			@RequestParam(value = "tag", required = false) String tag, Model model) {
+
 		List<WordList> lists = wordListService.search(keyword, null, tag);
 
 		if (lists == null) {
@@ -42,13 +44,18 @@ public class WordListController {
 			lists = lists.stream().filter(Objects::nonNull).toList();
 		}
 
-		model.addAttribute("lists", lists);
+		List<WordList> sharedLists = lists.stream()
+				.filter(wl -> wl.getIsShared() == 1)
+				.collect(Collectors.toList());
+		
+		model.addAttribute("lists", sharedLists);
 		model.addAttribute("keyword", keyword);
 		model.addAttribute("tag", tag);
 		model.addAttribute("groups", chunkLists(lists, 3));
 		model.addAttribute("allTags", hashtagRepository.findAll());
 
 		model.addAttribute("title", "모두의 단어장");
+		System.out.println("Shared WordLists: " + sharedLists.size());
 		return "/lists/index";
 	}
 
@@ -82,6 +89,7 @@ public class WordListController {
 		model.addAttribute("items", map.get("items"));
 		model.addAttribute("listTags", wl.getTags());
 		model.addAttribute("customWordForm", new CustomWordForm());
+		model.addAttribute("ownerNickname", wl.getOwner().getNickname());
 
 		if (principal != null) {
 			Long me = currentUserId(principal);
@@ -90,29 +98,27 @@ public class WordListController {
 
 		return "lists/detail";
 	}
-	
+
 	@GetMapping("/new")
 	public String newListForm(Principal principal, Model model) {
-		if(principal == null) return "redirect:/login";
+		if (principal == null)
+			return "redirect:/login";
 		model.addAttribute("lists", new WordList());
 		return "lists/new";
 	}
-	
-	
+
 	@PostMapping("/new")
-	public String createList(@RequestParam String listName,
-							@RequestParam(required=false) String description,
-							@RequestParam(required=false) String tags,
-							Principal principal) {
-		if(principal == null) return "redirect:/login";
+	public String createList(@RequestParam String listName, @RequestParam(required = false) String description,
+			@RequestParam(required = false) String tags, Principal principal) {
+		if (principal == null)
+			return "redirect:/login";
 		Long me = currentUserId(principal);
-		
+
 		wordListService.createList(me, listName, description, splitTags(tags));
-		
+
 		return "redirect:/lists/mine";
 	}
-	
-	
+
 	// --- 수정(제목/설명/태그) (소유자만) ---
 	@PostMapping("/{id}/edit")
 	public String edit(@PathVariable Long id, Principal principal, @RequestParam String listName,
@@ -142,6 +148,13 @@ public class WordListController {
 		return "lists/edit"; // templates/lists/edit.html
 	}
 
+	@PostMapping("/{listId}/share")
+	public String shareList(@PathVariable Long listId) {
+		System.out.println("listId: " + listId);
+		wordListService.shareList(listId);
+		return "redirect:/lists";
+	}
+
 	// --- 삭제 (소유자만) ---
 	@PostMapping("/{id}/delete")
 	public String delete(@PathVariable Long id, Principal principal) {
@@ -151,9 +164,6 @@ public class WordListController {
 		wordListService.deleteList(id, me);
 		return "redirect:/lists/mine";
 	}
-	
-	
-
 
 	// --- 아이템 추가(공식 단어) ---
 	@PostMapping("/{id}/items/addWord")

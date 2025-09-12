@@ -15,8 +15,10 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.text.Normalizer;
 import java.util.*;
@@ -336,6 +338,18 @@ public class WordListService {
 
 		wordList.setTags(tags);
 		wordListRepo.save(wordList);
+	}
+
+	@Transactional
+	public void shareList(Long listId) {
+		WordList wordList = wordListRepo.findById(listId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "단어장을 찾을 수 없습니다."));
+
+		System.out.println("Before sharing: " + wordList.getIsShared());
+		wordList.setIsShared(1);
+		wordListRepo.save(wordList);
+		System.out.println("After sharing: " + wordList.getIsShared());
+
 	}
 
 }

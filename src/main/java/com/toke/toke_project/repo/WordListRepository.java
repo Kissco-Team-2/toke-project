@@ -54,5 +54,7 @@ public interface WordListRepository extends JpaRepository<WordList, Long> {
            """)
     List<WordList> findByOwnerIdAndTagNormalized(@Param("ownerId") Long ownerId,
                                                  @Param("normalized") String normalized);
+    
+    List<WordList> findByIsSharedTrue();
 }
 

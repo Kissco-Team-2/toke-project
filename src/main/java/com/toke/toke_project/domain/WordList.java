@@ -16,7 +16,7 @@ public class WordList {
     @Column(name = "list_id")
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY) // 만든 사람
+    @ManyToOne(fetch = FetchType.EAGER) // 만든 사람
     @JoinColumn(name = "user_id", nullable = false)
     private Users owner;
 
@@ -38,6 +38,8 @@ public class WordList {
     )
     private Set<Hashtag> tags = new HashSet<>();
 
+    @Column(name="is_shared")
+    private Integer isShared = 0;
     
     @PrePersist
     public void prePersist() {

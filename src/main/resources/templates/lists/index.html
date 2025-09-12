@@ -54,15 +54,15 @@
 			<div class="slider">
 
 				<!-- 비어있을 때 -->
-				<div th:if="${lists == null or #lists.isEmpty(lists)}"
+				<div th:if="${sharedLists == null or #sharedLists.isEmpty(sharedLists)}"
 					class="text-center text-muted my-4">아직 단어장이 없습니다.</div>
 
 				<!-- 있을 때 -->
-				<div th:if="${lists != null and !#lists.isEmpty(lists)}"
+				<div th:if="${sharedLists != null and !#sharedLists.isEmpty(sharedLists)}"
 					class="slide-track">
 
 					<!-- 요소 널가드 -->
-					<div class="slide" th:each="wl : ${lists}" th:if="${wl != null}">
+					<div class="slide" th:each="wl : ${sharedLists}" th:if="${wl != null}">
 						<a class="train-card-link" th:if="${wl.id != null}"
 							th:href="@{/lists/{id}(id=${wl.id})}">
 							<div class="train-card" th:attr="id=${'card-' + wl.id}">
