@@ -62,27 +62,28 @@ public class WordListController {
 
 		return "/lists/index";
 	}
+
 	@GetMapping("/mine")
 	public String mine(@RequestParam(value = "keyword", required = false) String keyword,
-	                   @RequestParam(value = "tag", required = false) List<String> tags,
-	                   Principal principal, Model model) {
-	    if (principal == null) return "redirect:/login";
-	    Long me = currentUserId(principal);
+			@RequestParam(value = "tag", required = false) List<String> tags, Principal principal, Model model) {
+		if (principal == null)
+			return "redirect:/login";
+		Long me = currentUserId(principal);
 
-	    List<WordList> lists = wordListService.findMine(me, keyword, tags);
+		List<WordList> lists = wordListService.findMine(me, keyword, tags);
 
-	    model.addAttribute("lists", lists);
-	    model.addAttribute("keyword", keyword);
-	    model.addAttribute("selectedTags", tags == null ? Collections.emptyList() : tags);
-	    // 기존에 단일 tag를 쓰는 뷰 코드와 호환시키려면 첫 요소를 'tag'로도 넣어두자
-	    model.addAttribute("tag", (tags != null && !tags.isEmpty()) ? tags.get(0) : null);
+		model.addAttribute("lists", lists);
+		model.addAttribute("keyword", keyword);
+		model.addAttribute("selectedTags", tags == null ? Collections.emptyList() : tags);
+		// 기존에 단일 tag를 쓰는 뷰 코드와 호환시키려면 첫 요소를 'tag'로도 넣어두자
+		model.addAttribute("tag", (tags != null && !tags.isEmpty()) ? tags.get(0) : null);
 
-	    model.addAttribute("groups", chunkLists(lists, 3));
-	    model.addAttribute("allTags", hashtagRepository.findAll());
-	    model.addAttribute("title", "내 단어장");
-	    model.addAttribute("isMineView", true);
+		model.addAttribute("groups", chunkLists(lists, 3));
+		model.addAttribute("allTags", hashtagRepository.findAll());
+		model.addAttribute("title", "내 단어장");
+		model.addAttribute("isMineView", true);
 
-	    return "lists/mine";
+		return "lists/mine";
 	}
 
 	// --- 상세 (공개) ---
@@ -100,18 +101,17 @@ public class WordListController {
 		model.addAttribute("ownerNickname", map.get("ownerNickname"));
 
 		Long me = null;
-		
+
 		if (principal != null) {
 			me = currentUserId(principal);
 			model.addAttribute("me", me);
 		}
 
-		  boolean canManage = false;
-		    if (me != null) {
-		        canManage = Objects.equals(me, wl.getOwner().getId()) || wordListService.isAdmin(me);
-		    }
-		    model.addAttribute("canManage", canManage);
-
+		boolean canManage = false;
+		if (me != null) {
+			canManage = Objects.equals(me, wl.getOwner().getId()) || wordListService.isAdmin(me);
+		}
+		model.addAttribute("canManage", canManage);
 
 		return "lists/detail";
 	}
@@ -224,6 +224,7 @@ public class WordListController {
 			return "redirect:/login";
 		Long me = currentUserId(principal);
 
+		// 먼저 기본 검증 에러가 있는지 확인
 		if (bindingResult.hasErrors()) {
 			var map = wordListService.getDetail(id);
 			WordList wl = (WordList) map.get("list");
@@ -232,8 +233,28 @@ public class WordListController {
 			model.addAttribute("items", map.get("items"));
 			model.addAttribute("listTags", wl.getTags());
 			model.addAttribute("customWordForm", form);
+
+			// 모달 자동 오픈 플래그
+			model.addAttribute("openNewModal", true);
 			return "lists/detail";
 		}
+
+		// 중복 체크: 같은 일본어 표현이 이미 단어장에 있는지
+		if (wordListService.existsJapaneseInList(id, form.getJp())) {
+			bindingResult.rejectValue("jp", "duplicate", form.getJp() + " 는 이미 단어장에 존재합니다.");
+
+			var map = wordListService.getDetail(id);
+			WordList wl = (WordList) map.get("list");
+
+			model.addAttribute("list", map.get("list"));
+			model.addAttribute("items", map.get("items"));
+			model.addAttribute("listTags", wl.getTags());
+			model.addAttribute("customWordForm", form);
+			model.addAttribute("openNewModal", true);
+			return "lists/detail";
+		}
+
+		// 통과하면 저장
 		wordListService.addCustomItem(id, me, form.getJp(), form.getKana(), form.getKr(), form.getEx());
 		return "redirect:/lists/" + id;
 	}
@@ -250,24 +271,22 @@ public class WordListController {
 
 	@GetMapping("/search")
 	public String search(@RequestParam(required = false) String keyword,
-	                     @RequestParam(value = "tag", required = false) List<String> tags,
-	                     Principal principal, Model model) {
-	    if (principal == null)
-	        return "redirect:/login";
+			@RequestParam(value = "tag", required = false) List<String> tags, Principal principal, Model model) {
+		if (principal == null)
+			return "redirect:/login";
 
-	    List<WordList> lists = wordListService.search(keyword, keyword, tags);
+		List<WordList> lists = wordListService.search(keyword, keyword, tags);
 
-	    model.addAttribute("lists", lists);
-	    model.addAttribute("keyword", keyword);
-	    model.addAttribute("groups", chunkLists(lists, 3));
-	    model.addAttribute("selectedTags", tags == null ? Collections.emptyList() : tags);
-	    model.addAttribute("allTags", hashtagRepository.findAll());
+		model.addAttribute("lists", lists);
+		model.addAttribute("keyword", keyword);
+		model.addAttribute("groups", chunkLists(lists, 3));
+		model.addAttribute("selectedTags", tags == null ? Collections.emptyList() : tags);
+		model.addAttribute("allTags", hashtagRepository.findAll());
 
-	    model.addAttribute("title", "검색 결과");
-	    return "lists/index";
+		model.addAttribute("title", "검색 결과");
+		return "lists/index";
 	}
-	
-	
+
 	// --- 커스텀 항목 수정 (소유자만) ---
 	@PostMapping("/{id}/items/{itemId}/editCustom")
 	public String editCustom(@PathVariable Long id, @PathVariable Long itemId, Principal principal,

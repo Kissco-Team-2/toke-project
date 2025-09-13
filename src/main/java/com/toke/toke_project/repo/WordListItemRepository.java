@@ -25,4 +25,6 @@ public interface WordListItemRepository extends JpaRepository<WordListItem, Long
 
     
 	void deleteByWordList_Id(Long listId);
+
+	List<WordListItem> findByWordList_Id(Long listId);
 }

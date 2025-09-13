@@ -262,6 +262,16 @@ document.addEventListener("DOMContentLoaded", function() {
   })();
 </script>
 
+<!-- 모달 자동오픈: 서버에서 openNewModal=true 를 넣어줄 때 모달을 연다 -->
+<script th:if="${openNewModal}">
+  (function(){
+    var modalEl = document.getElementById('new_mywords_modal');
+    if (modalEl) {
+      var m = new bootstrap.Modal(modalEl);
+      m.show();
+    }
+  })();
+</script>
 
 
 </body>

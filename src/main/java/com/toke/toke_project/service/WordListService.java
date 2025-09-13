@@ -156,10 +156,33 @@ public class WordListService {
 		return it.getId();
 	}
 
+	// 단어장에 동일한 일본어(공식 단어 또는 customJapaneseWord)가 존재하는지 검사
+	@Transactional(readOnly = true)
+	public boolean existsJapaneseInList(Long listId, String jp) {
+	    if (jp == null) return false;
+	    String norm = jp.trim().toLowerCase();
+
+	    // itemRepo 에 적절한 조회 메서드가 없다면 여기서 전체 항목을 불러와 검사
+	    List<WordListItem> items = itemRepo.findByWordList_Id(listId);
+	    for (WordListItem it : items) {
+	        // custom 필드 비교
+	        if (it.getCustomJapaneseWord() != null
+	                && it.getCustomJapaneseWord().trim().toLowerCase().equals(norm)) {
+	            return true;
+	        }
+	        // 공식 단어 연결이 있는 경우 공식 단어의 japaneseWord 비교
+	        if (it.getWord() != null
+	                && it.getWord().getJapaneseWord() != null
+	                && it.getWord().getJapaneseWord().trim().toLowerCase().equals(norm)) {
+	            return true;
+	        }
+	    }
+	    return false;
+	}
+
 	@Transactional
 	public Long addItemAsCustomCopy(Long listId, Long ownerId, Long wordId) {
 		WordList wl = wordListRepo.findById(listId).orElseThrow();
-		// 기존에는 wl.getOwner().getId().equals(ownerId) 였음 -> admin 허용
 		if (!isOwnerOrAdmin(wl, ownerId)) {
 			throw new SecurityException("권한 없음");
 		}
