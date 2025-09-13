@@ -25,6 +25,13 @@
 	color: #bbb;
 	opacity: 1;
 }
+
+.tag-link.selected,
+.tag-link.selected span {
+  font-weight: 700;
+  color: #0f172a !important; /* 진한 색으로 표시 (원하면 변경) */
+}
+.tag-link { cursor: pointer; }
 </style>
 </head>
 <body class="d-flex flex-column min-vh-100" style="margin: 0;">
@@ -38,50 +45,57 @@
 			<div class="d-flex justify-content-between align-items-center">
 				<div class="mb-3">
 					<span th:each="t : ${allTags}"> <a
-						th:href="@{/lists(tag=${t.normalized})}"
-						th:text="${'#' + t.tagName}"
-						th:classappend="${tag == t.normalized} ? ' fw-bold text-dark' : ' text-muted'"
-						class="me-2 text-decoration-none">#태그</a>
+						href="javascript:void(0);"
+						class="me-2 text-decoration-none tag-link"
+						th:attr="data-normalized=${t.normalized}, data-display=${t.tagName}"
+						th:classappend="${selectedTags != null and selectedTags.contains(t.normalized)} ? ' fw-bold text-dark selected' : ' text-muted'">
+							<span th:text="${'#' + t.tagName}">#태그</span>
+					</a>
 					</span>
 				</div>
-
-				<form method="get" class="d-flex" style="width: 40%;">
+				
+				<form method="get" class="d-flex" style="width: 400px;">
 					<input type="text" name="keyword" th:value="${keyword}"
 						class="form-control me-2" />
 					<button class="btn btn-soft-green" style="width: 100px">검색</button>
 				</form>
 			</div>
+			<div class="d-flex flex-column">
+				<div class="slider">
 
-			<div class="slider">
+					<div
+						th:if="${sharedLists == null ? true : (sharedLists.size() == 0)}"
+						class="text-center text-muted my-4">아직 단어장이 없습니다.</div>
 
-				<div
-					th:if="${sharedLists == null ? true : (sharedLists.size() == 0)}"
-					class="text-center text-muted my-4">아직 단어장이 없습니다.</div>
+					<!-- 항목이 있을 때 -->
+					<div
+						th:if="${sharedLists == null ? false : (sharedLists.size() > 0)}"
+						class="slide-track">
 
-				<!-- 항목이 있을 때 -->
-				<div
-					th:if="${sharedLists == null ? false : (sharedLists.size() > 0)}"
-					class="slide-track">
-
-					<!-- 반복 전용: 각 항목 내부에서 null guard -->
-					<div class="slide" th:each="wl : ${sharedLists}">
-						<div th:if="${wl != null}">
-							<a class="train-card-link" th:if="${wl.id != null}"
-								th:href="@{/lists/{id}(id=${wl.id})}">
-								<div class="train-card" th:id="'card-' + ${wl.id}">
-									<h4 class="fw-bold" th:text="${wl.listName}">단어장 이름</h4>
-									<p th:text="${wl.description}">단어장 설명</p>
-									<p class="tags">
-										<!-- 태그 존재 여부도 보호 -->
-										<span th:if="${wl.tags != null}"
-											th:each="tagItem : ${wl.tags}" class="tag"
-											th:text="${'#' + tagItem.tagName}">#태그</span>
-									</p>
-								</div>
-							</a>
+						<!-- 반복 전용: 각 항목 내부에서 null guard -->
+						<div class="slide" th:each="wl : ${sharedLists}">
+							<div th:if="${wl != null}">
+								<a class="train-card-link" th:if="${wl.id != null}"
+									th:href="@{/lists/{id}(id=${wl.id})}">
+									<div class="train-card" th:id="'card-' + ${wl.id}">
+										<h4 class="fw-bold" th:text="${wl.listName}">단어장 이름</h4>
+										<p th:text="${wl.description}">단어장 설명</p>
+										<p class="tags">
+											<!-- 태그 존재 여부도 보호 -->
+											<span th:if="${wl.tags != null}"
+												th:each="tagItem : ${wl.tags}" class="tag"
+												th:text="${'#' + tagItem.tagName}">#태그</span>
+										</p>
+									</div>
+								</a>
+							</div>
 						</div>
 					</div>
-
+				</div>
+				<div
+					class="slider-controls d-flex justify-content-center align-items-center mt-3">
+					<button class="slider-btn prev" aria-label="이전">‹</button>
+					<button class="slider-btn next" aria-label="다음">›</button>
 				</div>
 			</div>
 		</div>
@@ -102,6 +116,216 @@
     });
   </script>
 
+	<script>
+(function() {
+  const slider = document.querySelector('.slider');
+  const track  = document.querySelector('.slide-track');
+  const slides = Array.from(track.querySelectorAll('.slide'));
+  const btnPrev = document.querySelector('.slider-btn.prev');
+  const btnNext = document.querySelector('.slider-btn.next');
+
+  if (!slider || !track || slides.length === 0) return;
+
+  // 설정
+  let index = 0;
+  const CLICK_CANCEL_MS = 40;        // 드래그 후 클릭 억제 시간
+  const DRAG_DISTANCE_RATIO = 0.25;  // 슬라이드 폭의 몇 배를 이동하면 다음/이전으로 간주할지 비율
+
+  // 내부 상태
+  let startX = 0;
+  let startTranslate = 0;
+  let isDragging = false;
+  let recentlyDragged = false;
+
+  // helper: 현재 슬라이드 폭(렌더링 된 값)
+  function getSlideWidth() {
+    // offsetWidth는 margin 제외, border/padding 포함
+    return slides[0].offsetWidth;
+  }
+
+  // helper: 현재 transform 값 가져오기
+  function getCurrentTranslate() {
+    const st = window.getComputedStyle(track);
+    const transform = st.transform || st.webkitTransform;
+    if (transform && transform !== 'none') {
+      // DOMMatrix로 안전하게 읽기
+      const m = new DOMMatrixReadOnly(transform);
+      return m.m41;
+    }
+    return 0;
+  }
+
+  // 부드러운 transition ON/OFF
+  function setTransition(enabled) {
+    if (enabled) {
+      track.style.transition = ''; // CSS에 선언된 기본 transition을 따르도록
+    } else {
+      track.style.transition = 'none';
+    }
+  }
+
+  // translate 설정
+  function setTranslate(x) {
+    track.style.transform = `translateX(${x}px)`;
+  }
+
+  // index 기준으로 이동 (wrap-around)
+  function moveToIndex(i, withTransition = true) {
+    const count = slides.length;
+    if (i < 0) i = count - 1;
+    if (i >= count) i = 0;
+    index = i;
+
+    const w = getSlideWidth();
+    const tx = -index * w;
+    setTransition(withTransition);
+    // 짧은 지연(브라우저 렌더) 후 변환 적용하면 더 안정적
+    requestAnimationFrame(() => {
+      setTranslate(tx);
+      // transition을 켰다면 leave it; 만약 끄고 싶다면 setTimeout으로 복원
+      if (!withTransition) {
+        // 즉시 복원
+        requestAnimationFrame(() => setTransition(true));
+      }
+    });
+  }
+
+  // 버튼 핸들러
+  if (btnPrev) btnPrev.addEventListener('click', (e) => { e.preventDefault(); moveToIndex(index - 1); });
+  if (btnNext) btnNext.addEventListener('click', (e) => { e.preventDefault(); moveToIndex(index + 1); });
+
+  // 포인터(마우스/터치) 이벤트: pointer 기반 사용
+  function onPointerDown(e) {
+    // 마우스의 경우 왼쪽 버튼만
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    isDragging = true;
+    startX = e.clientX;
+    startTranslate = getCurrentTranslate();
+    setTransition(false); // drag 중엔 즉시 따라오게
+
+    // 포인터 캡처 (pointermove가 elem 밖으로 나가도 이벤트를 받기 위해)
+    try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  }
+
+  function onPointerMove(e) {
+    if (!isDragging) return;
+
+    const dx = e.clientX - startX;
+    // 가로로 실제 얼마만큼 움직였는지 표시
+    const newTranslate = startTranslate + dx;
+    setTranslate(newTranslate);
+  }
+
+  function onPointerUp(e) {
+    if (!isDragging) return;
+    isDragging = false;
+
+    // release capture
+    try { e.target.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+
+    // 드래그 거리 판단
+    const dx = e.clientX - startX;
+    const w = getSlideWidth();
+    const threshold = w * DRAG_DISTANCE_RATIO;
+
+    // 스냅 로직: 충분히 많이 이동했으면 next/prev, 아니면 snap back
+    if (dx <= -threshold) {
+      moveToIndex(index + 1, true);
+      recentlyDragged = true;
+    } else if (dx >= threshold) {
+      moveToIndex(index - 1, true);
+      recentlyDragged = true;
+    } else {
+      // snap back to current index
+      moveToIndex(index, true);
+    }
+
+    // 짧게 클릭 억제 (drag 후에 링크가 열리는 것을 막기 위함)
+    if (recentlyDragged) {
+      setTimeout(() => recentlyDragged = false, CLICK_CANCEL_MS);
+    }
+  }
+
+  // click 억제: 드래그 직후 발생하는 click 막기
+  slider.addEventListener('click', function (e) {
+    if (recentlyDragged) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // 정상적인 클릭(짧은 클릭)은 그대로 동작합니다.
+  }, true); // 캡쳐 단계에서 먼저 처리
+
+  // 바인딩: pointer 이벤트를 slider(또는 track)에서 처리
+  // pointerdown은 slider에서 (사용자 입력 시작점이 어디든 잡히도록)
+  slider.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove, { passive: true });
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+
+  // 리사이즈 시 현재 위치 유지(슬라이드 폭 재계산)
+  window.addEventListener('resize', () => {
+    // transform을 index 기준으로 재계산
+    moveToIndex(index, false);
+  });
+
+  // 초기 위치 세팅
+  moveToIndex(0, false);
+
+})();
+</script>
+
+<script>
+(function(){
+  function getQueryArray(name) {
+    const params = new URLSearchParams(window.location.search);
+    // URLSearchParams.getAll은 동일한 key 여러값을 배열로 줌
+    return params.getAll(name).map(v => v.toString());
+  }
+
+  function setQueryArray(name, values) {
+    const params = new URLSearchParams(window.location.search);
+    // remove existing
+    params.delete(name);
+    // append each
+    (values || []).forEach(v => params.append(name, v));
+    // update location preserving pathname and other params
+    const newQuery = params.toString();
+    location.href = window.location.pathname + (newQuery ? ('?' + newQuery) : '');
+  }
+
+  document.addEventListener('click', function(e) {
+    const a = e.target.closest('.tag-link');
+    if (!a) return;
+    e.preventDefault();
+
+    const norm = a.getAttribute('data-normalized');
+    if (!norm) return;
+
+    // client-side immediate toggle visual (no need to wait redirect)
+    a.classList.toggle('selected');
+
+    // build new tag list (normalized strings)
+    const current = getQueryArray('tag'); // existing tag params
+    // normalize current values same way as server stores (lowercase)
+    const curLower = current.map(s => s.toString());
+
+    const idx = curLower.indexOf(norm);
+    let newList;
+    if (idx === -1) {
+      // add
+      newList = curLower.concat([norm]);
+    } else {
+      // remove (toggle off)
+      newList = curLower.slice(0, idx).concat(curLower.slice(idx + 1));
+    }
+
+    // keep other params (keyword, page 등) because setQueryArray uses full params and only replaces 'tag'
+    setQueryArray('tag', newList);
+  });
+})();
+</script>
 
 	<script
 		src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

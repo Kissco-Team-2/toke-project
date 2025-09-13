@@ -197,66 +197,109 @@ public class WordListService {
 		return wordListRepo.findAll();
 	}
 
+	// WordListService.java
 	@Transactional(readOnly = true)
-	public List<WordList> findMine(Long ownerId, String keyword, String tag) {
-		logger.debug("내 단어장 검색: ownerId={}, keyword={}, tag={}", ownerId, keyword, tag);
+	public List<WordList> findMine(Long ownerId, String keyword, List<String> tags) {
+	    logger.debug("내 단어장 검색 (multi-tag): ownerId={}, keyword={}, tags={}", ownerId, keyword, tags);
 
-		if (tag != null && !tag.isBlank()) {
-			return wordListRepo.findByOwnerIdAndTagNormalized(ownerId, tag.toLowerCase());
-		}
-		if (keyword != null && !keyword.isBlank()) {
-			return wordListRepo.findByOwnerIdAndListNameContainingIgnoreCase(ownerId, keyword.toLowerCase());
-		}
-		return wordListRepo.findByOwner_Id(ownerId);
+	    Set<WordList> result = new LinkedHashSet<>();
+
+	    // 1) keyword(제목) 검색 (owner 한정)
+	    if (keyword != null && !keyword.isBlank()) {
+	        List<WordList> byTitle = wordListRepo.findByOwnerIdAndListNameContainingIgnoreCase(ownerId, keyword.trim());
+	        result.addAll(byTitle);
+	    }
+
+	    // 2) tags 검색 (복수, OR)
+	    if (tags != null && !tags.isEmpty()) {
+	        // 정규화: 소문자 + 불필요 문자 제거 (서비스에 이미 normalizeTag 메서드가 있으니 재사용)
+	        List<String> norms = tags.stream()
+	                .filter(Objects::nonNull)
+	                .map(String::trim)
+	                .map(this::normalizeTag)
+	                .filter(s -> !s.isEmpty())
+	                .map(String::toLowerCase) // repository JPQL 비교가 lower(...) 사용하면 이건 선택
+	                .toList();
+
+	        if (!norms.isEmpty()) {
+	            List<WordList> byTags = wordListRepo.findByOwnerIdAndTagsNormalized(ownerId, norms);
+	            result.addAll(byTags);
+	        }
+	    }
+
+	    // 3) 아무 필터도 없으면 소유자 전체 반환
+	    if ((keyword == null || keyword.isBlank()) && (tags == null || tags.isEmpty())) {
+	        return wordListRepo.findByOwner_Id(ownerId);
+	    }
+
+	    return new ArrayList<>(result);
 	}
+
 
 	// WordListService.java
 	@Transactional(readOnly = true)
 	public Map<String, Object> getDetail(Long id) {
-	    Map<String, Object> map = new HashMap<>();
+		Map<String, Object> map = new HashMap<>();
 
-	    WordList wl = wordListRepo.findByIdWithOwnerAndTags(id)
-	            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "단어장을 찾을 수 없습니다."));
+		WordList wl = wordListRepo.findByIdWithOwnerAndTags(id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "단어장을 찾을 수 없습니다."));
 
-	    // items는 DB에서 최신순으로 가져오기
-	    List<WordListItem> items = itemRepo.findByWordListIdOrderByCreatedAtDesc(id);
-	    
+		// items는 DB에서 최신순으로 가져오기
+		List<WordListItem> items = itemRepo.findByWordListIdOrderByCreatedAtDesc(id);
 
-	    map.put("list", wl);
-	    map.put("items", items);
-	    map.put("listTags", wl.getTags()); // 필요하면 포함
-	    // (필요하면) owner 정보도 미리 꺼내서 모델에 넣을 수 있음
-	    map.put("ownerId", wl.getOwner() != null ? wl.getOwner().getId() : null);
-	    map.put("ownerNickname", wl.getOwner() != null ? wl.getOwner().getNickname() : null);
+		map.put("list", wl);
+		map.put("items", items);
+		map.put("listTags", wl.getTags()); // 필요하면 포함
+		// (필요하면) owner 정보도 미리 꺼내서 모델에 넣을 수 있음
+		map.put("ownerId", wl.getOwner() != null ? wl.getOwner().getId() : null);
+		map.put("ownerNickname", wl.getOwner() != null ? wl.getOwner().getNickname() : null);
 
-	    return map;
+		return map;
 	}
-
 
 	/* 검색: 제목/닉네임/태그 */
 	@Transactional(readOnly = true)
-	public List<WordList> search(String title, String nickname, String tag) {
-		Set<WordList> resultSet = new LinkedHashSet<>();
-		logger.debug("검색 시작: title={}, nickname={}, tag={}", title, nickname, tag);
+	public List<WordList> search(String title, String nickname, List<String> tags) {
+	    Set<WordList> resultSet = new LinkedHashSet<>();
+	    logger.debug("검색 시작: title={}, nickname={}, tags={}", title, nickname, tags);
 
-		if (title != null && !title.isBlank()) {
-			resultSet.addAll(wordListRepo.searchByTitle(title.trim().toLowerCase()));
-		}
+	    if (title != null && !title.isBlank()) {
+	        resultSet.addAll(wordListRepo.searchByTitle(title.trim().toLowerCase()));
+	    }
 
-		if (nickname != null && !nickname.isBlank()) {
-			resultSet.addAll(wordListRepo.searchByOwnerNickname(nickname.trim().toLowerCase()));
-		}
+	    if (nickname != null && !nickname.isBlank()) {
+	        resultSet.addAll(wordListRepo.searchByOwnerNickname(nickname.trim().toLowerCase()));
+	    }
 
-		if (tag != null && !tag.isBlank()) {
-			resultSet.addAll(wordListRepo.searchByTagNormalized(tag.toLowerCase()));
-		}
+	    if (tags != null && !tags.isEmpty()) {
+	        // 정규화(소문자) 및 공백 제거
+	        List<String> norms = tags.stream()
+	                .filter(Objects::nonNull)
+	                .map(String::trim)
+	                .filter(s -> !s.isEmpty())
+	                .map(s -> s.toLowerCase())
+	                .toList();
 
-		if (resultSet.isEmpty()) {
-			return wordListRepo.findAll();
-		}
+	        if (!norms.isEmpty()) {
+	            // 레포지토리에 다중 조회 메서드가 있으면 한 번에 가져오기 (권장)
+	            try {
+	                List<WordList> byTags = wordListRepo.searchByTagsNormalized(norms);
+	                resultSet.addAll(byTags);
+	            } catch (Exception ex) {
+	                // 만약 레포지토리에 findByTagNormalizedIn 가 없으면 폴백: 태그별로 합침 (OR)
+	                for (String tag : norms) {
+	                    resultSet.addAll(wordListRepo.searchByTagNormalized(tag));
+	                }
+	            }
+	        }
+	    }
 
-		return new ArrayList<>(resultSet);
+	    if (resultSet.isEmpty()) {
+	        return wordListRepo.findAll();
+	    }
+	    return new ArrayList<>(resultSet);
 	}
+
 
 	// 태그 정규화: 소문자 + 한글/영문/숫자만 남기고 나머지 제거
 	private static final Pattern KEEP = Pattern.compile("[^0-9A-Za-z가-힣]");
@@ -348,9 +391,9 @@ public class WordListService {
 		System.out.println("After sharing: " + wordList.getIsShared());
 
 	}
-	
+
 	public List<WordListItem> findItemsByListIdDesc(Long listId) {
-	    return itemRepo.findByWordListIdOrderByCreatedAtDesc(listId);
+		return itemRepo.findByWordListIdOrderByCreatedAtDesc(listId);
 	}
 
 }

@@ -25,6 +25,15 @@
 	color: #bbb;
 	opacity: 1;
 }
+
+
+.tag-link.selected,
+.tag-link.selected span {
+  font-weight: 700;
+  color: #0f172a !important; /* 진한 색으로 표시 (원하면 변경) */
+}
+.tag-link { cursor: pointer; }
+
 </style>
 </head>
 <body class="d-flex flex-column min-vh-100" style="margin: 0;">
@@ -37,16 +46,19 @@
 			<div class="d-flex justify-content-between align-items-center">
 				<div class="mb-3">
 					<span th:each="t : ${allTags}"> <a
-						th:href="@{/lists(tag=${t.normalized})}"
-						th:text="${'#' + t.tagName}"
-						th:classappend="${tag == t.normalized} ? ' fw-bold text-dark' : ' text-muted'"
-						class="me-2 text-decoration-none">#태그</a>
+						href="javascript:void(0);"
+						class="me-2 text-decoration-none tag-link"
+						th:attr="data-normalized=${t.normalized}, data-display=${t.tagName}"
+						th:classappend="${selectedTags != null and selectedTags.contains(t.normalized)} ? ' fw-bold text-dark selected' : ' text-muted'">
+							<span th:text="${'#' + t.tagName}">#태그</span>
+					</a>
 					</span>
 				</div>
 
+
 				<div class="d-flex justify-content-end">
 					<a th:href="@{/lists/new}" class="btn">단어장 추가</a>
-					<form method="get" class="d-flex" style="width: 40%;">
+					<form method="get" class="d-flex" style="width: 400px;">
 						<input type="text" name="keyword" th:value="${keyword}"
 							class="form-control me-2" />
 						<button class="btn btn-soft-green" style="width: 100px">검색</button>
@@ -263,6 +275,56 @@
 })();
 </script>
 
+<script>
+(function(){
+  function getQueryArray(name) {
+    const params = new URLSearchParams(window.location.search);
+    // URLSearchParams.getAll은 동일한 key 여러값을 배열로 줌
+    return params.getAll(name).map(v => v.toString());
+  }
+
+  function setQueryArray(name, values) {
+    const params = new URLSearchParams(window.location.search);
+    // remove existing
+    params.delete(name);
+    // append each
+    (values || []).forEach(v => params.append(name, v));
+    // update location preserving pathname and other params
+    const newQuery = params.toString();
+    location.href = window.location.pathname + (newQuery ? ('?' + newQuery) : '');
+  }
+
+  document.addEventListener('click', function(e) {
+    const a = e.target.closest('.tag-link');
+    if (!a) return;
+    e.preventDefault();
+
+    const norm = a.getAttribute('data-normalized');
+    if (!norm) return;
+
+    // client-side immediate toggle visual (no need to wait redirect)
+    a.classList.toggle('selected');
+
+    // build new tag list (normalized strings)
+    const current = getQueryArray('tag'); // existing tag params
+    // normalize current values same way as server stores (lowercase)
+    const curLower = current.map(s => s.toString());
+
+    const idx = curLower.indexOf(norm);
+    let newList;
+    if (idx === -1) {
+      // add
+      newList = curLower.concat([norm]);
+    } else {
+      // remove (toggle off)
+      newList = curLower.slice(0, idx).concat(curLower.slice(idx + 1));
+    }
+
+    // keep other params (keyword, page 등) because setQueryArray uses full params and only replaces 'tag'
+    setQueryArray('tag', newList);
+  });
+})();
+</script>
 
 
 	<script

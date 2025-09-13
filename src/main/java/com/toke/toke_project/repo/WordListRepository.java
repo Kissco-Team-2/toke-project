@@ -34,6 +34,10 @@ public interface WordListRepository extends JpaRepository<WordList, Long> {
            where lower(t.normalized) = lower(:normalized)
            """)
     List<WordList> searchByTagNormalized(@Param("normalized") String normalized);
+    
+    
+    
+    
 
     // 내 단어장: 제목 검색
     @Query("""
@@ -54,6 +58,29 @@ public interface WordListRepository extends JpaRepository<WordList, Long> {
            """)
     List<WordList> findByOwnerIdAndTagNormalized(@Param("ownerId") Long ownerId,
                                                  @Param("normalized") String normalized);
+    
+    
+    @Query("""
+    	       select distinct wl
+    	       from WordList wl
+    	       join wl.tags t
+    	       where lower(t.normalized) in :norms
+    	       """)
+    	List<WordList> searchByTagsNormalized(@Param("norms") List<String> norms);
+    
+
+
+    	@Query("""
+    	       select distinct wl
+    	       from WordList wl
+    	       join wl.tags t
+    	       where wl.owner.id = :ownerId
+    	         and lower(t.normalized) in :norms
+    	       """)
+    	List<WordList> findByOwnerIdAndTagsNormalized(@Param("ownerId") Long ownerId,
+    	                                             @Param("norms") List<String> norms);
+    	
+    	
     
     List<WordList> findByIsSharedTrue();
     
