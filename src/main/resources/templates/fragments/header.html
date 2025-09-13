@@ -62,14 +62,14 @@
 							class="nav-link" href="#">마이페이지</a></li>
 						<!-- 관리자일 때 -->
 						<li class="nav-item" sec:authorize="hasRole('ROLE_ADMIN')"><a
-							class="nav-link fw-bold" style="color:blue;">관리자</a></li>
+							class="nav-link fw-bold" style="color: blue;">관리자</a></li>
 
 						<!-- 일반 로그인 사용자일 때 (관리자는 위에서 처리되므로 여기선 일반 사용자만) -->
 						<li class="nav-item"
 							sec:authorize="isAuthenticated() and !hasRole('ROLE_ADMIN')"><a
-							class="nav-link fw-bold" style="color:blue;"
-							th:text="${u != null ? u.nickname + '님' : #authentication.name + '님'}">사용자님</a>
-						</li>
+							class="nav-link fw-bold" style="color: blue;"
+							th:text="${@currentUserAccessor.nickname != null ? @currentUserAccessor.nickname + '님' : #authentication.name + '님'}">
+								사용자님 </a></li>
 					</ul>
 					<div class="d-flex ms-3">
 						<div sec:authorize="isAnonymous()">
