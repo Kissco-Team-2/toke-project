@@ -44,14 +44,16 @@ public class WordListController {
 			lists = lists.stream().filter(Objects::nonNull).toList();
 		}
 
-		List<WordList> sharedLists = lists.stream()
-				.filter(wl -> wl.getIsShared() == 1)
+		List<WordList> sharedLists = lists.stream().filter(wl -> Objects.equals(wl.getIsShared(), 1))
 				.collect(Collectors.toList());
-		
-		model.addAttribute("lists", sharedLists);
+
+		model.addAttribute("sharedLists", sharedLists);
+		model.addAttribute("lists", lists);
+
 		model.addAttribute("keyword", keyword);
 		model.addAttribute("tag", tag);
-		model.addAttribute("groups", chunkLists(lists, 3));
+
+		model.addAttribute("groups", chunkLists(sharedLists, 3));
 		model.addAttribute("allTags", hashtagRepository.findAll());
 
 		model.addAttribute("title", "모두의 단어장");
@@ -149,8 +151,9 @@ public class WordListController {
 	}
 
 	@PostMapping("/{listId}/share")
-	public String shareList(@PathVariable Long listId) {
+	public String shareList(@PathVariable Long listId, Principal principal) {
 		System.out.println("listId: " + listId);
+
 		wordListService.shareList(listId);
 		return "redirect:/lists";
 	}

@@ -28,71 +28,79 @@
 </style>
 </head>
 <body class="d-flex flex-column min-vh-100" style="margin: 0;">
+	<!-- (임시) fragments를 사용 중이면 여기서 다시 넣어도 되지만 먼저 안전 확인을 위함 -->
 	<header th:replace="fragments/header :: site-header"></header>
+
 	<main class="flex-grow-1">
 		<div class="container mt-5">
 			<h2 class="text-center mb-4 fw-bold">모두의 단어장</h2>
 
-
 			<div class="d-flex justify-content-between align-items-center">
 				<div class="mb-3">
-					<a th:each="t : ${allTags}"
+					<span th:each="t : ${allTags}"> <a
 						th:href="@{/lists(tag=${t.normalized})}"
 						th:text="${'#' + t.tagName}"
 						th:classappend="${tag == t.normalized} ? ' fw-bold text-dark' : ' text-muted'"
 						class="me-2 text-decoration-none">#태그</a>
+					</span>
 				</div>
 
-				<form method="get" class="d-flex w-40">
+				<form method="get" class="d-flex" style="width: 40%;">
 					<input type="text" name="keyword" th:value="${keyword}"
-						class="form-control me-2">
+						class="form-control me-2" />
 					<button class="btn btn-soft-green" style="width: 100px">검색</button>
 				</form>
 			</div>
 
-
 			<div class="slider">
 
-				<!-- 비어있을 때 -->
-				<div th:if="${sharedLists == null or #sharedLists.isEmpty(sharedLists)}"
+				<div
+					th:if="${sharedLists == null ? true : (sharedLists.size() == 0)}"
 					class="text-center text-muted my-4">아직 단어장이 없습니다.</div>
 
-				<!-- 있을 때 -->
-				<div th:if="${sharedLists != null and !#sharedLists.isEmpty(sharedLists)}"
+				<!-- 항목이 있을 때 -->
+				<div
+					th:if="${sharedLists == null ? false : (sharedLists.size() > 0)}"
 					class="slide-track">
 
-					<!-- 요소 널가드 -->
-					<div class="slide" th:each="wl : ${sharedLists}" th:if="${wl != null}">
-						<a class="train-card-link" th:if="${wl.id != null}"
-							th:href="@{/lists/{id}(id=${wl.id})}">
-							<div class="train-card" th:attr="id=${'card-' + wl.id}">
-								<h4 class="fw-bold" th:text="${wl.listName}">단어장 이름</h4>
-								<p th:text="${wl.description}">단어장 설명</p>
-								<p class="tags">
-									<span th:each="tag : ${wl.tags}" class="tag"
-										th:text="${'#' + tag.tagName}">#태그</span>
-								</p>
-							</div>
-						</a>
+					<!-- 반복 전용: 각 항목 내부에서 null guard -->
+					<div class="slide" th:each="wl : ${sharedLists}">
+						<div th:if="${wl != null}">
+							<a class="train-card-link" th:if="${wl.id != null}"
+								th:href="@{/lists/{id}(id=${wl.id})}">
+								<div class="train-card" th:id="'card-' + ${wl.id}">
+									<h4 class="fw-bold" th:text="${wl.listName}">단어장 이름</h4>
+									<p th:text="${wl.description}">단어장 설명</p>
+									<p class="tags">
+										<!-- 태그 존재 여부도 보호 -->
+										<span th:if="${wl.tags != null}"
+											th:each="tagItem : ${wl.tags}" class="tag"
+											th:text="${'#' + tagItem.tagName}">#태그</span>
+									</p>
+								</div>
+							</a>
+						</div>
 					</div>
 
 				</div>
 			</div>
-
-
 		</div>
 	</main>
+
 	<footer th:replace="fragments/footer :: site-footer"
 		class="mt-auto bg-dark text-white"
 		style="margin-top: 0; padding-top: 0; background: #000;"></footer>
 
+
 	<script>
-        const colors = ['#8797FF', '#6A41FF', '#DEE1FF', '#A48BFF', '#A3CEFF', '#B9A2FF'];
-        document.querySelectorAll('.train-card').forEach(card => {
-            const randomColor = colors[Math.floor(Math.random() * colors.length)];
-            card.style.backgroundColor = randomColor;
-        });
-    </script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const colors = ['#8797FF', '#6A41FF', '#DEE1FF', '#A48BFF', '#A3CEFF', '#B9A2FF'];
+      document.querySelectorAll('.train-card').forEach(card => {
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+        card.style.backgroundColor = randomColor;
+      });
+    });
+  </script>
 
 	<script
 		src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

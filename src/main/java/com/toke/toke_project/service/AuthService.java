@@ -17,10 +17,6 @@ public class AuthService {
 
     @Transactional
     public void register(RegisterForm f) {
-        System.out.println("📌 [DEBUG] AuthService.register() 호출됨");
-        System.out.println("입력값: username=" + f.getUsername() +
-                ", email=" + f.getEmail() +
-                ", nickname=" + f.getNickname());
 
         // 1) 비밀번호 확인
         if (!f.getPassword().equals(f.getConfirmPassword())) {
@@ -49,6 +45,5 @@ public class AuthService {
         u.setRole("ROLE_USER"); // ✅ prefix 붙여서 저장
 
         usersRepo.save(u);
-        System.out.println("✅ [DEBUG] DB 저장 성공");
     }
 }
