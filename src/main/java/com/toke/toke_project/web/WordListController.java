@@ -3,6 +3,7 @@ package com.toke.toke_project.web;
 import com.toke.toke_project.domain.Hashtag;
 import com.toke.toke_project.domain.Users;
 import com.toke.toke_project.domain.WordList;
+import com.toke.toke_project.domain.WordListItem;
 import com.toke.toke_project.repo.HashtagRepository;
 import com.toke.toke_project.repo.UsersRepository;
 import com.toke.toke_project.service.WordListService;
@@ -87,16 +88,20 @@ public class WordListController {
 		var map = wordListService.getDetail(id);
 		WordList wl = (WordList) map.get("list");
 
-		model.addAttribute("list", map.get("list"));
-		model.addAttribute("items", map.get("items"));
+		List<WordListItem> items = wordListService.findItemsByListIdDesc(id);
+		
+		model.addAttribute("list", wl);
+		model.addAttribute("items", items);
 		model.addAttribute("listTags", wl.getTags());
 		model.addAttribute("customWordForm", new CustomWordForm());
-		model.addAttribute("ownerNickname", wl.getOwner().getNickname());
+		model.addAttribute("ownerNickname", map.get("ownerNickname"));
 
 		if (principal != null) {
 			Long me = currentUserId(principal);
 			model.addAttribute("me", me);
 		}
+		
+		 model.addAttribute("customWordForm", new CustomWordForm());
 
 		return "lists/detail";
 	}

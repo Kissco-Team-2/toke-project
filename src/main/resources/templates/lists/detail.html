@@ -173,7 +173,7 @@ ul {
 										th:text="${w.word?.exampleSentenceJp ?: w.customExampleSentenceJp}">送っていただいた資料を確認しました。</span>
 								</p>
 
-								<div th:if="${me != null and w.wordList.owner.id == me}"
+								<div th:if="${me != null and list.owner.id == me}"
 									class="accordion-actions mt-2 d-flex justify-content-end">
 									<a href="javascript:void(0)" class="btn btn-sm"
 										data-bs-toggle="modal" data-bs-target="#edit_mywords_modal"

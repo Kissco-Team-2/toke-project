@@ -210,31 +210,28 @@ public class WordListService {
 		return wordListRepo.findByOwner_Id(ownerId);
 	}
 
-	/* 단어장 상세 + 항목 */
+	// WordListService.java
 	@Transactional(readOnly = true)
-	public Map<String, Object> getDetail(Long listId) {
-		WordList wl = wordListRepo.findById(listId).orElseThrow();
+	public Map<String, Object> getDetail(Long id) {
+	    Map<String, Object> map = new HashMap<>();
 
-		// tags 강제 초기화
-		wl.getTags().size();
+	    WordList wl = wordListRepo.findByIdWithOwnerAndTags(id)
+	            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "단어장을 찾을 수 없습니다."));
 
-		List<WordListItem> items = itemRepo.findByWordList_IdOrderByIdAsc(listId);
+	    // items는 DB에서 최신순으로 가져오기
+	    List<WordListItem> items = itemRepo.findByWordListIdOrderByCreatedAtDesc(id);
+	    
 
-		// 공식 단어 word 강제 초기화
-		for (WordListItem it : items) {
-			if (it.getWord() != null) {
-				it.getWord().getJapaneseWord(); // 접근해서 초기화
-				it.getWord().getKoreanMeaning();
-				it.getWord().getReadingKana();
-				it.getWord().getExampleSentenceJp();
-			}
-		}
+	    map.put("list", wl);
+	    map.put("items", items);
+	    map.put("listTags", wl.getTags()); // 필요하면 포함
+	    // (필요하면) owner 정보도 미리 꺼내서 모델에 넣을 수 있음
+	    map.put("ownerId", wl.getOwner() != null ? wl.getOwner().getId() : null);
+	    map.put("ownerNickname", wl.getOwner() != null ? wl.getOwner().getNickname() : null);
 
-		Map<String, Object> res = new HashMap<>();
-		res.put("list", wl);
-		res.put("items", items);
-		return res;
+	    return map;
 	}
+
 
 	/* 검색: 제목/닉네임/태그 */
 	@Transactional(readOnly = true)
@@ -350,6 +347,10 @@ public class WordListService {
 		wordListRepo.save(wordList);
 		System.out.println("After sharing: " + wordList.getIsShared());
 
+	}
+	
+	public List<WordListItem> findItemsByListIdDesc(Long listId) {
+	    return itemRepo.findByWordListIdOrderByCreatedAtDesc(listId);
 	}
 
 }

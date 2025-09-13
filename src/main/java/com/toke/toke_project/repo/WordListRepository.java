@@ -56,5 +56,11 @@ public interface WordListRepository extends JpaRepository<WordList, Long> {
                                                  @Param("normalized") String normalized);
     
     List<WordList> findByIsSharedTrue();
+    
+    @Query("SELECT w FROM WordList w " +
+            "LEFT JOIN FETCH w.owner o " +        // owner 미리 로드
+            "LEFT JOIN FETCH w.tags t " +         // 필요하면 tags도 미리 로드
+            "WHERE w.id = :id")
+     Optional<WordList> findByIdWithOwnerAndTags(@Param("id") Long id);
 }
 

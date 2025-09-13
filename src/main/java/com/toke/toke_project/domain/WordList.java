@@ -3,7 +3,9 @@ package com.toke.toke_project.domain;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -41,6 +43,7 @@ public class WordList {
     @Column(name="is_shared")
     private Integer isShared = 0;
     
+
     @PrePersist
     public void prePersist() {
         if (createdAt == null) createdAt = LocalDateTime.now();
