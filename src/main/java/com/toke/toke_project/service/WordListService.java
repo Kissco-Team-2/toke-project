@@ -36,6 +36,27 @@ public class WordListService {
 	private final UsersRepository usersRepo;
 	private static final Logger logger = LoggerFactory.getLogger(WordListService.class);
 
+	public boolean isAdmin(Long userId) {
+		if (userId == null)
+			return false;
+		return usersRepo.findById(userId).map(u -> {
+			String role = u.getRole();
+			if (role == null)
+				return false;
+			role = role.trim();
+			return "ROLE_ADMIN".equals(role) || "ADMIN".equalsIgnoreCase(role);
+		}).orElse(false);
+
+	}
+
+	private boolean isOwnerOrAdmin(WordList wl, Long userId) {
+		if (wl == null || userId == null)
+			return false;
+		if (wl.getOwner() != null && Objects.equals(wl.getOwner().getId(), userId))
+			return true;
+		return isAdmin(userId);
+	}
+
 	/* 단어장 생성 */
 	@Transactional
 	public Long createList(Long ownerId, String name, String desc, List<String> tags) {
@@ -52,11 +73,13 @@ public class WordListService {
 	}
 
 	/* 단어장 수정(본인만) */
+
 	@Transactional
 	public void updateList(Long listId, Long ownerId, String name, String desc, List<String> tags) {
 		WordList wl = wordListRepo.findById(listId).orElseThrow();
-		if (!wl.getOwner().getId().equals(ownerId))
+		if (!isOwnerOrAdmin(wl, ownerId)) {
 			throw new SecurityException("권한 없음");
+		}
 		if (name != null)
 			wl.setListName(name);
 		if (desc != null)
@@ -69,59 +92,61 @@ public class WordListService {
 	}
 
 	/* 단어장 삭제(본인만) */
+
 	@Transactional
 	public void deleteList(Long listId, Long ownerId) {
 		WordList wl = wordListRepo.findById(listId).orElseThrow();
-		if (!wl.getOwner().getId().equals(ownerId))
+		if (!isOwnerOrAdmin(wl, ownerId))
 			throw new SecurityException("권한 없음");
 
-		wl.getTags().clear(); // 중간 테이블 clean
+		wl.getTags().clear();
 		itemRepo.deleteByWordList_Id(listId);
 		wordListRepo.delete(wl);
 	}
+	
+	
 
 	/* 공식 단어 추가 */
 	@Transactional
 	public Long addItemFromWord(Long listId, Long ownerId, Long wordId) {
-		WordList wl = wordListRepo.findById(listId).orElseThrow();
-		if (!wl.getOwner().getId().equals(ownerId))
-			throw new SecurityException("권한 없음");
-		Word w = wordRepo.findById(wordId).orElseThrow();
+	    WordList wl = wordListRepo.findById(listId).orElseThrow();
+	    if (!isOwnerOrAdmin(wl, ownerId))
+	        throw new SecurityException("권한 없음");
+	    Word w = wordRepo.findById(wordId).orElseThrow();
 
-		WordListItem it = new WordListItem();
-		it.setWordList(wl);
-		it.setWord(w);
-		itemRepo.save(it);
-		return it.getId();
+	    WordListItem it = new WordListItem();
+	    it.setWordList(wl);
+	    it.setWord(w);
+	    itemRepo.save(it);
+	    return it.getId();
 	}
 
 	@Transactional
 	public void addWordsToMyList(Long listId, Long ownerId, List<Long> wordIds) {
-		WordList wl = wordListRepo.findById(listId).orElseThrow();
-		if (!wl.getOwner().getId().equals(ownerId)) {
-			throw new SecurityException("권한 없음");
-		}
+	    WordList wl = wordListRepo.findById(listId).orElseThrow();
+	    if (!isOwnerOrAdmin(wl, ownerId)) {
+	        throw new SecurityException("권한 없음");
+	    }
 
-		for (Long wordId : wordIds) {
-			addItemAsCustomCopy(listId, ownerId, wordId);
-		}
+	    for (Long wordId : wordIds) {
+	        addItemAsCustomCopy(listId, ownerId, wordId);
+	    }
 	}
 
-	/* 커스텀 단어 추가 */
 	@Transactional
 	public Long addCustomItem(Long listId, Long ownerId, String jp, String kana, String kr, String ex) {
-		WordList wl = wordListRepo.findById(listId).orElseThrow();
-		if (!wl.getOwner().getId().equals(ownerId))
-			throw new SecurityException("권한 없음");
+	    WordList wl = wordListRepo.findById(listId).orElseThrow();
+	    if (!isOwnerOrAdmin(wl, ownerId))
+	        throw new SecurityException("권한 없음");
 
-		WordListItem it = new WordListItem();
-		it.setWordList(wl);
-		it.setCustomJapaneseWord(jp);
-		it.setCustomReadingKana(kana);
-		it.setCustomKoreanMeaning(kr);
-		it.setCustomExampleSentenceJp(ex);
-		itemRepo.save(it);
-		return it.getId();
+	    WordListItem it = new WordListItem();
+	    it.setWordList(wl);
+	    it.setCustomJapaneseWord(jp);
+	    it.setCustomReadingKana(kana);
+	    it.setCustomKoreanMeaning(kr);
+	    it.setCustomExampleSentenceJp(ex);
+	    itemRepo.save(it);
+	    return it.getId();
 	}
 
 	@Transactional
@@ -148,14 +173,15 @@ public class WordListService {
 		return it.getId();
 	}
 
-	/* 항목 삭제(본인만) */
 	@Transactional
 	public void removeItem(Long listItemId, Long ownerId) {
-		WordListItem it = itemRepo.findById(listItemId).orElseThrow();
-		if (!it.getWordList().getOwner().getId().equals(ownerId))
-			throw new SecurityException("권한 없음");
-		itemRepo.delete(it);
+	    WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+	    WordList wl = it.getWordList();
+	    if (wl == null || !isOwnerOrAdmin(wl, ownerId))
+	        throw new SecurityException("권한 없음");
+	    itemRepo.delete(it);
 	}
+
 
 	/* 태그 부착: normalized 중복 방지 + UNIQUE 경합 대응 + 연결 중복 방지 */
 	@Transactional
@@ -200,41 +226,36 @@ public class WordListService {
 	// WordListService.java
 	@Transactional(readOnly = true)
 	public List<WordList> findMine(Long ownerId, String keyword, List<String> tags) {
-	    logger.debug("내 단어장 검색 (multi-tag): ownerId={}, keyword={}, tags={}", ownerId, keyword, tags);
+		logger.debug("내 단어장 검색 (multi-tag): ownerId={}, keyword={}, tags={}", ownerId, keyword, tags);
 
-	    Set<WordList> result = new LinkedHashSet<>();
+		Set<WordList> result = new LinkedHashSet<>();
 
-	    // 1) keyword(제목) 검색 (owner 한정)
-	    if (keyword != null && !keyword.isBlank()) {
-	        List<WordList> byTitle = wordListRepo.findByOwnerIdAndListNameContainingIgnoreCase(ownerId, keyword.trim());
-	        result.addAll(byTitle);
-	    }
+		// 1) keyword(제목) 검색 (owner 한정)
+		if (keyword != null && !keyword.isBlank()) {
+			List<WordList> byTitle = wordListRepo.findByOwnerIdAndListNameContainingIgnoreCase(ownerId, keyword.trim());
+			result.addAll(byTitle);
+		}
 
-	    // 2) tags 검색 (복수, OR)
-	    if (tags != null && !tags.isEmpty()) {
-	        // 정규화: 소문자 + 불필요 문자 제거 (서비스에 이미 normalizeTag 메서드가 있으니 재사용)
-	        List<String> norms = tags.stream()
-	                .filter(Objects::nonNull)
-	                .map(String::trim)
-	                .map(this::normalizeTag)
-	                .filter(s -> !s.isEmpty())
-	                .map(String::toLowerCase) // repository JPQL 비교가 lower(...) 사용하면 이건 선택
-	                .toList();
+		// 2) tags 검색 (복수, OR)
+		if (tags != null && !tags.isEmpty()) {
+			// 정규화: 소문자 + 불필요 문자 제거 (서비스에 이미 normalizeTag 메서드가 있으니 재사용)
+			List<String> norms = tags.stream().filter(Objects::nonNull).map(String::trim).map(this::normalizeTag)
+					.filter(s -> !s.isEmpty()).map(String::toLowerCase) // repository JPQL 비교가 lower(...) 사용하면 이건 선택
+					.toList();
 
-	        if (!norms.isEmpty()) {
-	            List<WordList> byTags = wordListRepo.findByOwnerIdAndTagsNormalized(ownerId, norms);
-	            result.addAll(byTags);
-	        }
-	    }
+			if (!norms.isEmpty()) {
+				List<WordList> byTags = wordListRepo.findByOwnerIdAndTagsNormalized(ownerId, norms);
+				result.addAll(byTags);
+			}
+		}
 
-	    // 3) 아무 필터도 없으면 소유자 전체 반환
-	    if ((keyword == null || keyword.isBlank()) && (tags == null || tags.isEmpty())) {
-	        return wordListRepo.findByOwner_Id(ownerId);
-	    }
+		// 3) 아무 필터도 없으면 소유자 전체 반환
+		if ((keyword == null || keyword.isBlank()) && (tags == null || tags.isEmpty())) {
+			return wordListRepo.findByOwner_Id(ownerId);
+		}
 
-	    return new ArrayList<>(result);
+		return new ArrayList<>(result);
 	}
-
 
 	// WordListService.java
 	@Transactional(readOnly = true)
@@ -260,46 +281,41 @@ public class WordListService {
 	/* 검색: 제목/닉네임/태그 */
 	@Transactional(readOnly = true)
 	public List<WordList> search(String title, String nickname, List<String> tags) {
-	    Set<WordList> resultSet = new LinkedHashSet<>();
-	    logger.debug("검색 시작: title={}, nickname={}, tags={}", title, nickname, tags);
+		Set<WordList> resultSet = new LinkedHashSet<>();
+		logger.debug("검색 시작: title={}, nickname={}, tags={}", title, nickname, tags);
 
-	    if (title != null && !title.isBlank()) {
-	        resultSet.addAll(wordListRepo.searchByTitle(title.trim().toLowerCase()));
-	    }
+		if (title != null && !title.isBlank()) {
+			resultSet.addAll(wordListRepo.searchByTitle(title.trim().toLowerCase()));
+		}
 
-	    if (nickname != null && !nickname.isBlank()) {
-	        resultSet.addAll(wordListRepo.searchByOwnerNickname(nickname.trim().toLowerCase()));
-	    }
+		if (nickname != null && !nickname.isBlank()) {
+			resultSet.addAll(wordListRepo.searchByOwnerNickname(nickname.trim().toLowerCase()));
+		}
 
-	    if (tags != null && !tags.isEmpty()) {
-	        // 정규화(소문자) 및 공백 제거
-	        List<String> norms = tags.stream()
-	                .filter(Objects::nonNull)
-	                .map(String::trim)
-	                .filter(s -> !s.isEmpty())
-	                .map(s -> s.toLowerCase())
-	                .toList();
+		if (tags != null && !tags.isEmpty()) {
+			// 정규화(소문자) 및 공백 제거
+			List<String> norms = tags.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
+					.map(s -> s.toLowerCase()).toList();
 
-	        if (!norms.isEmpty()) {
-	            // 레포지토리에 다중 조회 메서드가 있으면 한 번에 가져오기 (권장)
-	            try {
-	                List<WordList> byTags = wordListRepo.searchByTagsNormalized(norms);
-	                resultSet.addAll(byTags);
-	            } catch (Exception ex) {
-	                // 만약 레포지토리에 findByTagNormalizedIn 가 없으면 폴백: 태그별로 합침 (OR)
-	                for (String tag : norms) {
-	                    resultSet.addAll(wordListRepo.searchByTagNormalized(tag));
-	                }
-	            }
-	        }
-	    }
+			if (!norms.isEmpty()) {
+				// 레포지토리에 다중 조회 메서드가 있으면 한 번에 가져오기 (권장)
+				try {
+					List<WordList> byTags = wordListRepo.searchByTagsNormalized(norms);
+					resultSet.addAll(byTags);
+				} catch (Exception ex) {
+					// 만약 레포지토리에 findByTagNormalizedIn 가 없으면 폴백: 태그별로 합침 (OR)
+					for (String tag : norms) {
+						resultSet.addAll(wordListRepo.searchByTagNormalized(tag));
+					}
+				}
+			}
+		}
 
-	    if (resultSet.isEmpty()) {
-	        return wordListRepo.findAll();
-	    }
-	    return new ArrayList<>(resultSet);
+		if (resultSet.isEmpty()) {
+			return wordListRepo.findAll();
+		}
+		return new ArrayList<>(resultSet);
 	}
-
 
 	// 태그 정규화: 소문자 + 한글/영문/숫자만 남기고 나머지 제거
 	private static final Pattern KEEP = Pattern.compile("[^0-9A-Za-z가-힣]");
@@ -319,40 +335,35 @@ public class WordListService {
 	/* 공식 -> 커스텀 사본 전환 (소유자만) */
 	@Transactional
 	public Long customizeFromOfficial(Long listItemId, Long ownerId) {
-		WordListItem it = itemRepo.findById(listItemId).orElseThrow();
-		// 소유자 체크
-		if (!it.getWordList().getOwner().getId().equals(ownerId)) {
-			throw new SecurityException("권한 없음");
-		}
-		if (it.getWord() == null) {
-			// 이미 커스텀인 경우는 그대로 반환
-			return it.getId();
-		}
-		// 공식 단어를 커스텀 필드로 복사하고, 공식 참조를 끊는다
-		Word w = it.getWord();
-		it.setCustomJapaneseWord(w.getJapaneseWord());
-		it.setCustomReadingKana(w.getReadingKana());
-		it.setCustomKoreanMeaning(w.getKoreanMeaning());
-		it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
-		it.setWord(null); // 공식 참조 해제 → 이제 완전 커스텀 항목
-		// 필요 시 category를 커스텀에도 보관하고 싶다면 WLI에 custom_category 컬럼을 추가하는 방식도 가능
-		return it.getId();
+	    WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+	    if (!isOwnerOrAdmin(it.getWordList(), ownerId)) {
+	        throw new SecurityException("권한 없음");
+	    }
+	    if (it.getWord() == null) {
+	        return it.getId();
+	    }
+	    Word w = it.getWord();
+	    it.setCustomJapaneseWord(w.getJapaneseWord());
+	    it.setCustomReadingKana(w.getReadingKana());
+	    it.setCustomKoreanMeaning(w.getKoreanMeaning());
+	    it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
+	    it.setWord(null);
+	    return it.getId();
 	}
-
+	
 	@Transactional
 	public void updateCustomItem(Long listItemId, Long ownerId, String jp, String kana, String kr, String ex) {
-		WordListItem it = itemRepo.findById(listItemId).orElseThrow();
-		if (!it.getWordList().getOwner().getId().equals(ownerId)) {
-			throw new SecurityException("권한 없음");
-		}
-		// 커스텀만 수정 허용 (공식 연결 상태면 먼저 customizeFromOfficial 호출 유도)
-		if (it.getWord() != null) {
-			throw new IllegalStateException("공식 단어는 직접 수정할 수 없습니다. 먼저 '내 사본으로 전환'을 해주세요.");
-		}
-		it.setCustomJapaneseWord(jp);
-		it.setCustomReadingKana(kana);
-		it.setCustomKoreanMeaning(kr);
-		it.setCustomExampleSentenceJp(ex);
+	    WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+	    if (!isOwnerOrAdmin(it.getWordList(), ownerId)) {
+	        throw new SecurityException("권한 없음");
+	    }
+	    if (it.getWord() != null) {
+	        throw new IllegalStateException("공식 단어는 직접 수정할 수 없습니다. 먼저 '내 사본으로 전환'을 해주세요.");
+	    }
+	    it.setCustomJapaneseWord(jp);
+	    it.setCustomReadingKana(kana);
+	    it.setCustomKoreanMeaning(kr);
+	    it.setCustomExampleSentenceJp(ex);
 	}
 
 	/* 단어장에 태그 추가 메서드 */

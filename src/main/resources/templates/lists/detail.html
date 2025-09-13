@@ -116,7 +116,7 @@ ul {
 
 				<div class="small">
 					<!-- 본인 소유일 경우만 노출 -->
-					<div th:if="${me != null and me == list.owner.id}"
+					<div th:if="${canManage}"
 						class="d-flex gap-2">
 
 						<form th:action="@{|/lists/${list.id}/share|}" method="post">

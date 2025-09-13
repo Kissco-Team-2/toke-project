@@ -99,12 +99,19 @@ public class WordListController {
 		model.addAttribute("customWordForm", new CustomWordForm());
 		model.addAttribute("ownerNickname", map.get("ownerNickname"));
 
+		Long me = null;
+		
 		if (principal != null) {
-			Long me = currentUserId(principal);
+			me = currentUserId(principal);
 			model.addAttribute("me", me);
 		}
 
-		model.addAttribute("customWordForm", new CustomWordForm());
+		  boolean canManage = false;
+		    if (me != null) {
+		        canManage = Objects.equals(me, wl.getOwner().getId()) || wordListService.isAdmin(me);
+		    }
+		    model.addAttribute("canManage", canManage);
+
 
 		return "lists/detail";
 	}
