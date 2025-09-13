@@ -52,9 +52,19 @@ public class WordListService {
 	private boolean isOwnerOrAdmin(WordList wl, Long userId) {
 		if (wl == null || userId == null)
 			return false;
-		if (wl.getOwner() != null && Objects.equals(wl.getOwner().getId(), userId))
+		// 소유자 검사
+		if (wl.getOwner() != null && Objects.equals(wl.getOwner().getId(), userId)) {
 			return true;
-		return isAdmin(userId);
+		}
+
+		Optional<com.toke.toke_project.domain.Users> ou = usersRepo.findById(userId);
+		if (ou.isEmpty())
+			return false;
+		String role = ou.get().getRole();
+		if (role == null)
+			return false;
+		role = role.toUpperCase();
+		return role.equals("ROLE_ADMIN") || role.equals("ADMIN") || role.contains("ADMIN");
 	}
 
 	/* 단어장 생성 */
@@ -103,56 +113,54 @@ public class WordListService {
 		itemRepo.deleteByWordList_Id(listId);
 		wordListRepo.delete(wl);
 	}
-	
-	
 
-	/* 공식 단어 추가 */
 	@Transactional
 	public Long addItemFromWord(Long listId, Long ownerId, Long wordId) {
-	    WordList wl = wordListRepo.findById(listId).orElseThrow();
-	    if (!isOwnerOrAdmin(wl, ownerId))
-	        throw new SecurityException("권한 없음");
-	    Word w = wordRepo.findById(wordId).orElseThrow();
+		WordList wl = wordListRepo.findById(listId).orElseThrow();
+		if (!isOwnerOrAdmin(wl, ownerId))
+			throw new SecurityException("권한 없음");
+		Word w = wordRepo.findById(wordId).orElseThrow();
 
-	    WordListItem it = new WordListItem();
-	    it.setWordList(wl);
-	    it.setWord(w);
-	    itemRepo.save(it);
-	    return it.getId();
+		WordListItem it = new WordListItem();
+		it.setWordList(wl);
+		it.setWord(w);
+		itemRepo.save(it);
+		return it.getId();
 	}
 
 	@Transactional
 	public void addWordsToMyList(Long listId, Long ownerId, List<Long> wordIds) {
-	    WordList wl = wordListRepo.findById(listId).orElseThrow();
-	    if (!isOwnerOrAdmin(wl, ownerId)) {
-	        throw new SecurityException("권한 없음");
-	    }
+		WordList wl = wordListRepo.findById(listId).orElseThrow();
+		if (!isOwnerOrAdmin(wl, ownerId)) {
+			throw new SecurityException("권한 없음");
+		}
 
-	    for (Long wordId : wordIds) {
-	        addItemAsCustomCopy(listId, ownerId, wordId);
-	    }
+		for (Long wordId : wordIds) {
+			addItemAsCustomCopy(listId, ownerId, wordId);
+		}
 	}
 
 	@Transactional
 	public Long addCustomItem(Long listId, Long ownerId, String jp, String kana, String kr, String ex) {
-	    WordList wl = wordListRepo.findById(listId).orElseThrow();
-	    if (!isOwnerOrAdmin(wl, ownerId))
-	        throw new SecurityException("권한 없음");
+		WordList wl = wordListRepo.findById(listId).orElseThrow();
+		if (!isOwnerOrAdmin(wl, ownerId))
+			throw new SecurityException("권한 없음");
 
-	    WordListItem it = new WordListItem();
-	    it.setWordList(wl);
-	    it.setCustomJapaneseWord(jp);
-	    it.setCustomReadingKana(kana);
-	    it.setCustomKoreanMeaning(kr);
-	    it.setCustomExampleSentenceJp(ex);
-	    itemRepo.save(it);
-	    return it.getId();
+		WordListItem it = new WordListItem();
+		it.setWordList(wl);
+		it.setCustomJapaneseWord(jp);
+		it.setCustomReadingKana(kana);
+		it.setCustomKoreanMeaning(kr);
+		it.setCustomExampleSentenceJp(ex);
+		itemRepo.save(it);
+		return it.getId();
 	}
 
 	@Transactional
 	public Long addItemAsCustomCopy(Long listId, Long ownerId, Long wordId) {
 		WordList wl = wordListRepo.findById(listId).orElseThrow();
-		if (!wl.getOwner().getId().equals(ownerId)) {
+		// 기존에는 wl.getOwner().getId().equals(ownerId) 였음 -> admin 허용
+		if (!isOwnerOrAdmin(wl, ownerId)) {
 			throw new SecurityException("권한 없음");
 		}
 		Word w = wordRepo.findById(wordId).orElseThrow();
@@ -175,13 +183,11 @@ public class WordListService {
 
 	@Transactional
 	public void removeItem(Long listItemId, Long ownerId) {
-	    WordListItem it = itemRepo.findById(listItemId).orElseThrow();
-	    WordList wl = it.getWordList();
-	    if (wl == null || !isOwnerOrAdmin(wl, ownerId))
-	        throw new SecurityException("권한 없음");
-	    itemRepo.delete(it);
+		WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+		if (!isOwnerOrAdmin(it.getWordList(), ownerId))
+			throw new SecurityException("권한 없음");
+		itemRepo.delete(it);
 	}
-
 
 	/* 태그 부착: normalized 중복 방지 + UNIQUE 경합 대응 + 연결 중복 방지 */
 	@Transactional
@@ -335,35 +341,35 @@ public class WordListService {
 	/* 공식 -> 커스텀 사본 전환 (소유자만) */
 	@Transactional
 	public Long customizeFromOfficial(Long listItemId, Long ownerId) {
-	    WordListItem it = itemRepo.findById(listItemId).orElseThrow();
-	    if (!isOwnerOrAdmin(it.getWordList(), ownerId)) {
-	        throw new SecurityException("권한 없음");
-	    }
-	    if (it.getWord() == null) {
-	        return it.getId();
-	    }
-	    Word w = it.getWord();
-	    it.setCustomJapaneseWord(w.getJapaneseWord());
-	    it.setCustomReadingKana(w.getReadingKana());
-	    it.setCustomKoreanMeaning(w.getKoreanMeaning());
-	    it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
-	    it.setWord(null);
-	    return it.getId();
+		WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+		if (!isOwnerOrAdmin(it.getWordList(), ownerId)) {
+			throw new SecurityException("권한 없음");
+		}
+		if (it.getWord() == null) {
+			return it.getId();
+		}
+		Word w = it.getWord();
+		it.setCustomJapaneseWord(w.getJapaneseWord());
+		it.setCustomReadingKana(w.getReadingKana());
+		it.setCustomKoreanMeaning(w.getKoreanMeaning());
+		it.setCustomExampleSentenceJp(w.getExampleSentenceJp());
+		it.setWord(null);
+		return it.getId();
 	}
-	
+
 	@Transactional
 	public void updateCustomItem(Long listItemId, Long ownerId, String jp, String kana, String kr, String ex) {
-	    WordListItem it = itemRepo.findById(listItemId).orElseThrow();
-	    if (!isOwnerOrAdmin(it.getWordList(), ownerId)) {
-	        throw new SecurityException("권한 없음");
-	    }
-	    if (it.getWord() != null) {
-	        throw new IllegalStateException("공식 단어는 직접 수정할 수 없습니다. 먼저 '내 사본으로 전환'을 해주세요.");
-	    }
-	    it.setCustomJapaneseWord(jp);
-	    it.setCustomReadingKana(kana);
-	    it.setCustomKoreanMeaning(kr);
-	    it.setCustomExampleSentenceJp(ex);
+		WordListItem it = itemRepo.findById(listItemId).orElseThrow();
+		if (!isOwnerOrAdmin(it.getWordList(), ownerId)) {
+			throw new SecurityException("권한 없음");
+		}
+		if (it.getWord() != null) {
+			throw new IllegalStateException("공식 단어는 직접 수정할 수 없습니다. 먼저 '내 사본으로 전환'을 해주세요.");
+		}
+		it.setCustomJapaneseWord(jp);
+		it.setCustomReadingKana(kana);
+		it.setCustomKoreanMeaning(kr);
+		it.setCustomExampleSentenceJp(ex);
 	}
 
 	/* 단어장에 태그 추가 메서드 */

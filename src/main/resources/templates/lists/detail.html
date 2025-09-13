@@ -249,5 +249,20 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 
+<div id="flash-msg" th:if="${msg}" th:attr="data-msg=${msg}" style="display:none;"></div>
+
+<script>
+  (function(){
+    const el = document.getElementById('flash-msg');
+    if (!el) return;
+    const msg = el.dataset.msg; 
+    if (msg && msg.length) {
+      alert(msg);
+    }
+  })();
+</script>
+
+
+
 </body>
 </html>
