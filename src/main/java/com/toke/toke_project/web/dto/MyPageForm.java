@@ -18,7 +18,7 @@ public class MyPageForm {
     // 하이픈 없이 숫자만 9~15 자리 (원하면 국내 패턴으로 바꿔도 됨)
     @NotBlank
     @Pattern(regexp = "^[0-9]{9,15}$",
-             message = "전화번호는 숫자만 9~15자로 입력하세요.")
+             message = "전화번호는 숫자만 입력하세요.")
     private String phoneNumber;
 }
 

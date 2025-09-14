@@ -50,4 +50,21 @@ public interface QnaRepository extends JpaRepository<Qna, Long> {
             order by q.id desc
            """)
     Page<Qna> pageVisibleForUser(@Param("myId") Long myId, Pageable pageable);
+    
+    /** 내가 쓴 글만 페이징 */
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "author")
+    @Query(
+      value = """
+              select q
+                from Qna q
+               where q.author.id = :userId
+               order by q.createdAt desc
+              """,
+      countQuery = """
+              select count(q)
+                from Qna q
+               where q.author.id = :userId
+              """
+    )
+    Page<Qna> pageMine(@Param("userId") Long userId, Pageable pageable);
 }
