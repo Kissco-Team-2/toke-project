@@ -23,28 +23,34 @@ public class AuthController {
 	}
 
 	@PostMapping("/register")
-	public String register(
-	        @Valid @ModelAttribute("form") RegisterForm form,
-	        BindingResult binding,
-	        RedirectAttributes ra) {
+	public String register(@Valid @ModelAttribute("form") RegisterForm form, BindingResult binding,
+			RedirectAttributes ra) {
 
-	    if (binding.hasErrors()) {
-	        return "auth/register";
-	    }
+		if (binding.hasErrors()) {
+			return "auth/register";
+		}
 
-	    try {
-	        authService.register(form);
-	        ra.addFlashAttribute("msg", "회원가입이 성공적으로 완료되었습니다.");
-	        return "redirect:/register_success"; // ✅ 리다이렉트로 이동
-	    } catch (IllegalArgumentException | IllegalStateException e) {
-	        binding.reject("", e.getMessage());
-	        return "auth/register";
-	    }
+		try {
+			authService.register(form);
+			ra.addFlashAttribute("msg", "회원가입이 성공적으로 완료되었습니다.");
+			return "redirect:/register_success"; // ✅ 리다이렉트로 이동
+		} catch (IllegalArgumentException | IllegalStateException e) {
+			binding.reject("", e.getMessage());
+			return "auth/register";
+		}
 	}
 
 	@GetMapping("/login")
-	public String loginPage() {
-		return "auth/login";
+	public String loginPage(@RequestParam(value = "error", required = false) String error,
+			RedirectAttributes redirectAttrs, Model model) {
+		// 로그인 실패 파라미터가 있으면 flash에 메시지를 담고 쿼리 제거를 위해 리다이렉트
+		if (error != null) {
+			redirectAttrs.addFlashAttribute("loginError", "이메일 혹은 비밀번호가 틀렸거나 존재하지 않는 계정입니다.");
+			return "redirect:/login";
+		}
+
+		// 플래시 속성(loginError)은 리다이렉트 후 모델에 자동으로 들어옵니다.
+		return "auth/login"; // 템플릿 이름
 	}
 
 	@GetMapping("/register_success")
