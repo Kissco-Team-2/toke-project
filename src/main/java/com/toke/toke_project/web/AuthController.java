@@ -42,10 +42,10 @@ public class AuthController {
 
 	@GetMapping("/login")
 	public String loginPage(@RequestParam(value = "error", required = false) String error,
-			RedirectAttributes redirectAttrs, Model model) {
+			RedirectAttributes ra, Model model) {
 		// 로그인 실패 파라미터가 있으면 flash에 메시지를 담고 쿼리 제거를 위해 리다이렉트
 		if (error != null) {
-			redirectAttrs.addFlashAttribute("loginError", "이메일 혹은 비밀번호가 틀렸거나 존재하지 않는 계정입니다.");
+			ra.addFlashAttribute("loginError", "이메일 혹은 비밀번호가 틀렸거나 존재하지 않는 계정입니다.");
 			return "redirect:/login";
 		}
 

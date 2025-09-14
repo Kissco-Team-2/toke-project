@@ -33,9 +33,10 @@ public class QuizResultService {
         QuizResult saved = quizResultRepository.save(result);
 
         if ("N".equals(saved.getIsCorrect())) {
-            // QuizResult 엔티티는 primitive 컬럼 userId, quizId 를 갖고 있으므로 바로 사용
-            wrongNoteService.registerIfNotExists(saved.getUserId(), saved.getQuizId());
+            wrongNoteService.recordWrong(saved.getUserId(), saved.getWordId()); // ✅ 이거 하나만
         }
+
         return saved;
     }
+
 }
