@@ -33,6 +33,13 @@ public class MyPageService {
 
     @Transactional
     public void deleteMe(Long id) {
+    	Users me = usersRepo.findById(id).orElseThrow();
+
+        // ✅ 관리자 계정은 절대 탈퇴 불가
+        if ("ROLE_ADMIN".equalsIgnoreCase(me.getRole())) {
+            throw new IllegalStateException("관리자 계정은 탈퇴할 수 없습니다.");
+        }
+    	
         usersRepo.deleteById(id);
     }
 }
