@@ -22,6 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 
 @Controller
 @RequiredArgsConstructor
@@ -215,6 +217,71 @@ public class WordListController {
 		ra.addFlashAttribute("msg", "선택한 단어가 내 단어장에 추가되었습니다.");
 		return "redirect:/lists/" + listId;
 	}
+	
+
+
+	// 컨트롤러 내부에 추가
+	@PostMapping(value = "/addWords/check", produces = MediaType.APPLICATION_JSON_VALUE)
+	@ResponseBody
+	public ResponseEntity<Map<String, Object>> checkAddWords(
+	        @RequestParam("selectedWordIds") String selectedWordIds,
+	        @RequestParam("listId") Long listId,
+	        Principal principal) {
+
+	    Map<String, Object> resp = new HashMap<>();
+	    if (principal == null) {
+	        resp.put("ok", false);
+	        resp.put("message", "로그인이 필요합니다.");
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(resp);
+	    }
+
+	    if (selectedWordIds == null || selectedWordIds.isBlank()) {
+	        resp.put("ok", false);
+	        resp.put("message", "선택된 단어가 없습니다.");
+	        resp.put("duplicates", Collections.emptyList());
+	        return ResponseEntity.ok(resp);
+	    }
+
+	    Long me = currentUserId(principal);
+
+	    // 권한 체크: 내가 해당 리스트의 소유자거나 (옵션) admin이면 진행 가능
+	    WordList wl = wordListService.getWordListById(listId); // 아래에 helper 추가 권장
+	    if (wl == null) {
+	        resp.put("ok", false);
+	        resp.put("message", "단어장이 없습니다.");
+	        return ResponseEntity.ok(resp);
+	    }
+	    if (!wl.getOwner().getId().equals(me) /* && !isAdmin(me) */) {
+	        // 여기서 admin 허용하려면 isAdmin 체크 추가
+	        resp.put("ok", false);
+	        resp.put("message", "권한이 없습니다.");
+	        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(resp);
+	    }
+
+	    // 파싱
+	    List<Long> wordIds = Arrays.stream(selectedWordIds.split(","))
+	            .map(String::trim)
+	            .filter(s -> !s.isBlank())
+	            .map(Long::parseLong)
+	            .toList();
+
+	    Set<Long> duplicates = wordListService.findExistingWordIdsInList(listId, wordIds);
+
+	    // 중복이면 중복되는 단어들(일본어 텍스트 포함)을 돌려줄 수 있게 구성
+	    Map<Long, String> idToJp = wordListService.getJapaneseByIds(wordIds);
+
+	    List<Map<String, Object>> dupList = duplicates.stream().map(id -> {
+	        Map<String, Object> m = new HashMap<>();
+	        m.put("id", id);
+	        m.put("jp", idToJp.getOrDefault(id, ""));
+	        return m;
+	    }).toList();
+
+	    resp.put("ok", duplicates.isEmpty());
+	    resp.put("duplicates", dupList);
+	    return ResponseEntity.ok(resp);
+	}
+
 
 	// --- 아이템 추가(커스텀) ---
 	@PostMapping("/{id}/items/addCustom")

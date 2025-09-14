@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -159,25 +160,24 @@ public class WordListService {
 	// 단어장에 동일한 일본어(공식 단어 또는 customJapaneseWord)가 존재하는지 검사
 	@Transactional(readOnly = true)
 	public boolean existsJapaneseInList(Long listId, String jp) {
-	    if (jp == null) return false;
-	    String norm = jp.trim().toLowerCase();
+		if (jp == null)
+			return false;
+		String norm = jp.trim().toLowerCase();
 
-	    // itemRepo 에 적절한 조회 메서드가 없다면 여기서 전체 항목을 불러와 검사
-	    List<WordListItem> items = itemRepo.findByWordList_Id(listId);
-	    for (WordListItem it : items) {
-	        // custom 필드 비교
-	        if (it.getCustomJapaneseWord() != null
-	                && it.getCustomJapaneseWord().trim().toLowerCase().equals(norm)) {
-	            return true;
-	        }
-	        // 공식 단어 연결이 있는 경우 공식 단어의 japaneseWord 비교
-	        if (it.getWord() != null
-	                && it.getWord().getJapaneseWord() != null
-	                && it.getWord().getJapaneseWord().trim().toLowerCase().equals(norm)) {
-	            return true;
-	        }
-	    }
-	    return false;
+		// itemRepo 에 적절한 조회 메서드가 없다면 여기서 전체 항목을 불러와 검사
+		List<WordListItem> items = itemRepo.findByWordList_Id(listId);
+		for (WordListItem it : items) {
+			// custom 필드 비교
+			if (it.getCustomJapaneseWord() != null && it.getCustomJapaneseWord().trim().toLowerCase().equals(norm)) {
+				return true;
+			}
+			// 공식 단어 연결이 있는 경우 공식 단어의 japaneseWord 비교
+			if (it.getWord() != null && it.getWord().getJapaneseWord() != null
+					&& it.getWord().getJapaneseWord().trim().toLowerCase().equals(norm)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Transactional
@@ -434,6 +434,82 @@ public class WordListService {
 
 	public List<WordListItem> findItemsByListIdDesc(Long listId) {
 		return itemRepo.findByWordListIdOrderByCreatedAtDesc(listId);
+	}
+
+	public String normalizeJpForCompare(String s) {
+		if (s == null)
+			return "";
+		String n = Normalizer.normalize(s, Normalizer.Form.NFKC);
+		n = n.trim().toLowerCase(Locale.ROOT);
+		return n;
+	}
+
+	@Transactional(readOnly = true)
+	public Set<String> findCustomJapaneseWordsForUser(Long ownerId) {
+		List<String> list = itemRepo.findCustomJapaneseWordsByOwnerId(ownerId);
+		if (list == null)
+			return Collections.emptySet();
+		return list.stream().filter(Objects::nonNull).map(this::normalizeJpForCompare).filter(s -> !s.isEmpty())
+				.collect(Collectors.toSet());
+	}
+	
+	@Transactional(readOnly = true)
+	public Set<Long> findExistingWordIdsInList(Long listId, List<Long> wordIds) {
+	    if (listId == null || wordIds == null || wordIds.isEmpty()) return Collections.emptySet();
+
+	    // 1) 리스트에 있는 항목들 모두 조회 (작업 단순화; 규모가 크면 repository에 조건 쿼리 추가 권장)
+	    List<WordListItem> itemsInList = itemRepo.findByWordList_Id(listId); // 존재한다고 가정
+
+	    // 기존에 공식(Word)로 들어간 id 집합
+	    Set<Long> existingOfficialIds = itemsInList.stream()
+	            .map(WordListItem::getWord)
+	            .filter(Objects::nonNull)
+	            .map(Word::getId)
+	            .filter(Objects::nonNull)
+	            .collect(Collectors.toSet());
+
+	    // 기존에 커스텀으로 들어간 일본어 표현들(정규화: 소문자 트림)
+	    Set<String> existingCustomJps = itemsInList.stream()
+	            .filter(it -> it.getWord() == null && it.getCustomJapaneseWord() != null)
+	            .map(it -> it.getCustomJapaneseWord().trim().toLowerCase())
+	            .collect(Collectors.toSet());
+
+	    // 2) 선택된 wordIds 중 공식으로 동일한 id가 이미 존재하면 중복
+	    Set<Long> duplicates = wordIds.stream()
+	            .filter(existingOfficialIds::contains)
+	            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+	    // 3) 선택된 공식 Word들의 JapaneseWord를 가져와서, 커스텀 표현이 같은지 체크
+	    List<Word> words = wordRepo.findAllById(wordIds); // JPA 기본 메서드
+	    Map<Long, String> idToNormJp = words.stream()
+	            .filter(w -> w.getJapaneseWord() != null)
+	            .collect(Collectors.toMap(Word::getId, w -> w.getJapaneseWord().trim().toLowerCase()));
+
+	    for (Map.Entry<Long, String> e : idToNormJp.entrySet()) {
+	        Long wid = e.getKey();
+	        String normJp = e.getValue();
+	        if (existingCustomJps.contains(normJp)) {
+	            duplicates.add(wid);
+	        }
+	    }
+
+	    return duplicates;
+	}
+
+	/**
+	 * (선택적) wordId -> japaneseWord 매핑을 가져오는 helper (뷰에서 이름을 보여주려면 사용)
+	 */
+	@Transactional(readOnly = true)
+	public Map<Long, String> getJapaneseByIds(List<Long> wordIds) {
+	    if (wordIds == null || wordIds.isEmpty()) return Collections.emptyMap();
+	    List<Word> words = wordRepo.findAllById(wordIds);
+	    return words.stream().filter(Objects::nonNull)
+	            .collect(Collectors.toMap(Word::getId,
+	                    w -> w.getJapaneseWord() == null ? "" : w.getJapaneseWord()));
+	}
+
+	public WordList getWordListById(Long listId) {
+		return wordListRepo.findById(listId).orElse(null);
 	}
 
 }
