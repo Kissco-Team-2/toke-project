@@ -7,12 +7,18 @@ import com.toke.toke_project.service.MyPageQueryService;
 import com.toke.toke_project.service.MyPageService;
 import com.toke.toke_project.web.dto.MyPageForm;
 import com.toke.toke_project.web.dto.MyPageView;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -114,9 +120,20 @@ public class MyPageController {
 
     @PostMapping("/delete")
     public String delete(@AuthenticationPrincipal CustomUserDetails principal,
-                         RedirectAttributes ra) {
+                         RedirectAttributes ra,
+                         HttpServletRequest request,
+                         HttpServletResponse response) {
+
         if (principal == null) return "redirect:/login";
+
         myPageService.deleteMe(principal.getId());
+
+        // ✅ 세션/인증 완전 제거
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            new SecurityContextLogoutHandler().logout(request, response, auth);
+        }
+
         ra.addFlashAttribute("msg", "회원탈퇴가 처리되었습니다.");
         return "redirect:/login?logout=true";
     }
