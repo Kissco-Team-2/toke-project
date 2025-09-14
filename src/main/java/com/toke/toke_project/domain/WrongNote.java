@@ -21,11 +21,10 @@ public class WrongNote {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private Users user;
-
-    // quiz_id FK
+    
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "quiz_id", nullable = false)
-    private Quiz quiz;
+    @JoinColumn(name = "word_id", nullable = false)
+    private Word word;
 
     @Lob
     @Column(name = "note")
@@ -36,6 +35,13 @@ public class WrongNote {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+    
+    @Column(name = "wrong_count", nullable=false)
+    private Long wrongCount = 0L;
+
+    @Column(name = "last_wrong_at")
+    private LocalDateTime lastWrongAt;
+
 
     public WrongNote() { }
 
@@ -43,6 +49,7 @@ public class WrongNote {
     public void prePersist() {
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (starred == null) starred = "N";
+        if (wrongCount == null) wrongCount = 0L;
     }
 
 

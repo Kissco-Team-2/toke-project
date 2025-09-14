@@ -1,18 +1,15 @@
 package com.toke.toke_project.service;
 
-import com.toke.toke_project.domain.Quiz;
+
 import com.toke.toke_project.domain.Users;
 import com.toke.toke_project.domain.Word;
 import com.toke.toke_project.domain.WrongNote;
-import com.toke.toke_project.repo.QuizRepository;
-import com.toke.toke_project.repo.QuizResultRepository;
 import com.toke.toke_project.repo.WrongNoteRepository;
 import com.toke.toke_project.repo.WordRepository;
 import com.toke.toke_project.web.dto.WrongNoteDto;
 import com.toke.toke_project.web.dto.BulkDeleteResponse;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -23,190 +20,45 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * WrongNote 관련 서비스
- */
 @Service
 public class WrongNoteService {
 
     private final WrongNoteRepository wrongNoteRepository;
-    private final QuizRepository quizRepository;
     private final WordRepository wordRepository;
-    private final QuizResultRepository quizResultRepository;
 
     @PersistenceContext
     private EntityManager em;
 
     public WrongNoteService(WrongNoteRepository wrongNoteRepository,
-                            QuizRepository quizRepository,
-                            WordRepository wordRepository,
-                            QuizResultRepository quizResultRepository) {
+                            WordRepository wordRepository) {
         this.wrongNoteRepository = wrongNoteRepository;
-        this.quizRepository = quizRepository;
         this.wordRepository = wordRepository;
-        this.quizResultRepository = quizResultRepository;
     }
 
-    /** 안전한 등록: race condition 대비 */
-    @Transactional
-    public WrongNote registerIfNotExists(Long userId, Long quizId) {
-        Optional<WrongNote> exist = wrongNoteRepository.findByUser_IdAndQuiz_QuizId(userId, quizId);
-        if (exist.isPresent()) return exist.get();
+    /* -------------------- 기본 유틸 / 목록 -------------------- */
 
-        WrongNote wn = new WrongNote();
-        Users userRef = em.getReference(Users.class, userId);
-        wn.setUser(userRef);
-
-        Quiz quiz = quizRepository.findById(quizId)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz not found: " + quizId));
-        wn.setQuiz(quiz);
-        wn.setCreatedAt(LocalDateTime.now());
-        wn.setStarred("N");
-
-        try {
-            return wrongNoteRepository.save(wn);
-        } catch (DataIntegrityViolationException ex) {
-            return wrongNoteRepository.findByUser_IdAndQuiz_QuizId(userId, quizId)
-                    .orElseThrow(() -> ex);
-        }
-    }
-
-    /** 단순 목록 (기본 최신순) */
     @Transactional(readOnly = true)
     public List<WrongNoteDto> listByUser(Long userId) {
-        List<WrongNote> notes = wrongNoteRepository.findByUserIdWithQuiz(userId);
-        return notes.stream().map(wn -> toDto(wn, userId)).collect(Collectors.toList());
+        List<WrongNote> notes = wrongNoteRepository.findByUserIdWithWord(userId);
+        return notes.stream().map(this::toDto).collect(Collectors.toList());
     }
 
-    /** ✅ 노트 내용 저장/수정: 소유권 검사 추가 */
-    @Transactional
-    public WrongNoteDto updateNote(Long noteId, Long userId, String noteContent, String starred) {
-        WrongNote wn = wrongNoteRepository.findById(noteId)
-                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
-
-        if (wn.getUser() == null || !wn.getUser().getId().equals(userId)) {
-            throw new SecurityException("Not allowed to edit this note");
-        }
-
-        wn.setNote(noteContent);
-        if (starred != null) wn.setStarred(starred);
-
-        WrongNote saved = wrongNoteRepository.save(wn);
-        return toDto(saved, userId);
-    }
-
-    /** ✅ 단건 삭제: 소유권 검사 추가 */
-    @Transactional
-    public void deleteNote(Long noteId, Long userId) {
-        WrongNote wn = wrongNoteRepository.findById(noteId)
-                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
-        if (wn.getUser() == null || !wn.getUser().getId().equals(userId)) {
-            throw new SecurityException("Not allowed to delete this note");
-        }
-        wrongNoteRepository.delete(wn);
-    }
-
-    /** starred 직접 설정 (Y/N) */
-    @Transactional
-    public WrongNoteDto setStarred(Long noteId, Long userId, boolean starredFlag) {
-        String val = starredFlag ? "Y" : "N";
-
-        int updated = wrongNoteRepository.updateStarredByNoteIdAndUserId(noteId, userId, val);
-        if (updated == 0) {
-            boolean exists = wrongNoteRepository.existsById(noteId);
-            if (!exists) throw new IllegalArgumentException("WrongNote not found: " + noteId);
-            else throw new SecurityException("Not allowed to change this note");
-        }
-
-        WrongNote wn = wrongNoteRepository.findById(noteId)
-                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found after update: " + noteId));
-
-        return toDto(wn, userId);
-    }
-
-    /** 원자적 토글 (DB CASE문 사용) */
-    @Transactional
-    public WrongNoteDto toggleStar(Long noteId, Long userId) {
-        WrongNote wn = wrongNoteRepository.findById(noteId)
-                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
-
-        if (!wn.getUser().getId().equals(userId)) {
-            throw new SecurityException("Not allowed to toggle this note");
-        }
-
-        int updated = wrongNoteRepository.toggleStarByNoteIdAndUserId(noteId, userId);
-        if (updated == 0) {
-            throw new IllegalStateException("Toggle failed");
-        }
-
-        WrongNote updatedWn = wrongNoteRepository.findById(noteId)
-                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found after toggle: " + noteId));
-        return toDto(updatedWn, userId);
-    }
-
-    /** 사용자별 starred 리스트 반환 (DTO) */
-    @Transactional(readOnly = true)
-    public List<WrongNoteDto> listStarredByUser(Long userId) {
-        List<WrongNote> notes = wrongNoteRepository.findByUser_IdAndStarredOrderByCreatedAtDesc(userId, "Y");
-        return notes.stream().map(wn -> toDto(wn, userId)).collect(Collectors.toList());
-    }
-
-    // --- 헬퍼: entity -> dto 매핑 ---
-    private WrongNoteDto toDto(WrongNote wn, Long requestUserId) {
-        WrongNoteDto dto = new WrongNoteDto();
-        dto.setNoteId(wn.getNoteId());
-        dto.setUserId(wn.getUser() != null ? wn.getUser().getId() : null);
-        dto.setQuizId(wn.getQuiz() != null ? wn.getQuiz().getQuizId() : null);
-        dto.setNote(wn.getNote());
-        dto.setStarred(wn.getStarred());
-        dto.setNoteCreatedAt(wn.getCreatedAt());
-
-        Word w = (wn.getQuiz() != null) ? wn.getQuiz().getWord() : null;
-        if (w == null && wn.getQuiz() != null && wn.getQuiz().getQuestion() != null) {
-            w = wordRepository.findByJapaneseOrKorean(wn.getQuiz().getQuestion()).orElse(null);
-        }
-        if (w != null) {
-            dto.setJapaneseWord(w.getJapaneseWord());
-            dto.setReadingKana(w.getReadingKana());
-            dto.setKoreanMeaning(w.getKoreanMeaning());
-            dto.setExampleSentenceJp(w.getExampleSentenceJp());
-            dto.setCategory(w.getCategory());
-        } else {
-            dto.setJapaneseWord(wn.getQuiz() != null ? wn.getQuiz().getQuestion() : null);
-            dto.setCategory(null);
-        }
-
-        Long qId = dto.getQuizId();
-        dto.setWrongCount(qId != null ? quizResultRepository.countWrongByUserAndQuiz(requestUserId, qId) : 0L);
-        dto.setLastWrongAt(qId != null ? quizResultRepository.findLastWrongDateByUserAndQuiz(requestUserId, qId) : null);
-
-        return dto;
-    }
-
-    /**
-     * 필터/정렬/페이징된 오답노트 반환
-     */
     @Transactional(readOnly = true)
     public Page<WrongNoteDto> listByUserWithFilters(
             Long userId,
             String sort,
             String dateFilter,
-            String from,   // yyyy-MM-dd
-            String to,     // yyyy-MM-dd
+            String from,
+            String to,
             String category,
             int page,
             int size) {
 
-        List<WrongNote> notes = wrongNoteRepository.findByUserIdWithQuiz(userId);
-        List<WrongNoteDto> dtos = notes.stream()
-                .map(wn -> toDto(wn, userId))
-                .collect(Collectors.toList());
+        List<WrongNote> notes = wrongNoteRepository.findByUserIdWithWord(userId);
+        List<WrongNoteDto> dtos = notes.stream().map(this::toDto).collect(Collectors.toList());
 
         LocalDateTime tmpFrom = null;
         LocalDateTime tmpTo = null;
@@ -267,7 +119,102 @@ public class WrongNoteService {
         return new PageImpl<>(pageContent, PageRequest.of(page, size), filtered.size());
     }
 
-    /** 일괄 삭제 (이미 소유자 검증 포함) */
+    /* -------------------- 오답 기록 (word 기준) -------------------- */
+
+    @Transactional
+    public void recordWrong(Long userId, Long wordId) {
+        Word word = wordRepository.findById(wordId)
+                .orElseThrow(() -> new IllegalArgumentException("Word not found: " + wordId));
+
+        WrongNote wn = wrongNoteRepository.findByUser_IdAndWord_Id(userId, word.getId())
+                .orElseGet(() -> {
+                    WrongNote n = new WrongNote();
+                    n.setUser(em.getReference(Users.class, userId));
+                    n.setWord(word);
+                    n.setCreatedAt(LocalDateTime.now());
+                    n.setStarred("N");
+                    n.setWrongCount(0L);
+                    return n;
+                });
+
+        wn.setWrongCount( (wn.getWrongCount() == null ? 0L : wn.getWrongCount()) + 1 );
+        wn.setLastWrongAt(LocalDateTime.now());
+
+        wrongNoteRepository.save(wn);
+    }
+
+    /* -------------------- CRUD: 수정/삭제/토글/별표 리스트 -------------------- */
+
+    @Transactional
+    public WrongNoteDto updateNote(Long noteId, Long userId, String noteContent, String starred) {
+        WrongNote wn = wrongNoteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
+
+        if (wn.getUser() == null || !wn.getUser().getId().equals(userId)) {
+            throw new SecurityException("Not allowed to edit this note");
+        }
+
+        wn.setNote(noteContent);
+        if (starred != null) wn.setStarred(starred);
+
+        WrongNote saved = wrongNoteRepository.save(wn);
+        return toDto(saved);
+    }
+
+    @Transactional
+    public void deleteNote(Long noteId, Long userId) {
+        WrongNote wn = wrongNoteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
+        if (wn.getUser() == null || !wn.getUser().getId().equals(userId)) {
+            throw new SecurityException("Not allowed to delete this note");
+        }
+        wrongNoteRepository.delete(wn);
+    }
+
+    @Transactional
+    public WrongNoteDto setStarred(Long noteId, Long userId, boolean starredFlag) {
+        String val = starredFlag ? "Y" : "N";
+
+        int updated = wrongNoteRepository.updateStarredByNoteIdAndUserId(noteId, userId, val);
+        if (updated == 0) {
+            boolean exists = wrongNoteRepository.existsById(noteId);
+            if (!exists) throw new IllegalArgumentException("WrongNote not found: " + noteId);
+            else throw new SecurityException("Not allowed to change this note");
+        }
+
+        WrongNote wn = wrongNoteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found after update: " + noteId));
+
+        return toDto(wn);
+    }
+
+    @Transactional
+    public WrongNoteDto toggleStar(Long noteId, Long userId) {
+        WrongNote wn = wrongNoteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found: " + noteId));
+
+        if (!wn.getUser().getId().equals(userId)) {
+            throw new SecurityException("Not allowed to toggle this note");
+        }
+
+        int updated = wrongNoteRepository.toggleStarByNoteIdAndUserId(noteId, userId);
+        if (updated == 0) {
+            throw new IllegalStateException("Toggle failed");
+        }
+
+        WrongNote updatedWn = wrongNoteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("WrongNote not found after toggle: " + noteId));
+        return toDto(updatedWn);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WrongNoteDto> listStarredByUser(Long userId) {
+        List<WrongNote> notes = wrongNoteRepository.findByUser_IdAndStarredOrderByCreatedAtDesc(userId, "Y");
+        return notes.stream().map(this::toDto).collect(Collectors.toList());
+    }
+
+    /* -------------------- 일괄 삭제 -------------------- */
+
     @Transactional
     public BulkDeleteResponse deleteNotesBulk(List<Long> noteIds, Long userId) {
         List<WrongNote> foundNotes = wrongNoteRepository.findAllById(noteIds);
@@ -300,5 +247,31 @@ public class WrongNoteService {
                 ownedIds.size(), notFound.size(), notOwned.size());
 
         return new BulkDeleteResponse(ownedIds, notFound, notOwned, message);
+    }
+
+    /* -------------------- helper: entity -> dto -------------------- */
+
+    private WrongNoteDto toDto(WrongNote wn) {
+        WrongNoteDto dto = new WrongNoteDto();
+        dto.setNoteId(wn.getNoteId());
+        dto.setUserId(wn.getUser() != null ? wn.getUser().getId() : null);
+        dto.setWordId(wn.getWord() != null ? wn.getWord().getId() : null);
+        dto.setNote(wn.getNote());
+        dto.setStarred(wn.getStarred());
+        dto.setNoteCreatedAt(wn.getCreatedAt());
+        dto.setWrongCount(wn.getWrongCount());
+        dto.setLastWrongAt(wn.getLastWrongAt());
+
+        Word w = wn.getWord();
+        if (w != null) {
+            dto.setJapaneseWord(w.getJapaneseWord());
+            dto.setReadingKana(w.getReadingKana());
+            dto.setKoreanMeaning(w.getKoreanMeaning());
+            dto.setExampleSentenceJp(w.getExampleSentenceJp());
+            dto.setCategory(w.getCategory());
+       
+        }
+
+        return dto;
     }
 }

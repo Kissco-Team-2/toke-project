@@ -20,8 +20,8 @@ public class QuizResult {
 	@Column(name = "user_id", nullable = false)
 	private Long userId;
 
-	@Column(name = "quiz_id", nullable = false)
-	private Long quizId;
+	@Column(name = "word_id", nullable = false)
+	private Long wordId;
 
 	@Column(name = "user_answer", length = 1)
 	private String userAnswer; // A/B/C/D (무응답이면 null 허용)

@@ -13,14 +13,6 @@ import com.toke.toke_project.service.model.QuizPaper;
 public class CacheConfig {
 	
 	
-	@Bean
-	public Cache<String, QuizPaper> quizPaparCache(){
-		return Caffeine.newBuilder()
-				.expireAfterWrite(Duration.ofMinutes(30))
-				.maximumSize(10_0000)
-				.build();
-	}
-	
 	// @Configuration 어딘가
 	@Bean
 	public Cache<String, QuizPaper> quizCache() {

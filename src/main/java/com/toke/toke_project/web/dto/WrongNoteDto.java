@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 
 public class WrongNoteDto {
 	private Long noteId;
-	private Long quizId;
 	private Long userId;
+	private Long wordId;
 
 	private String japaneseWord;
 	private String readingKana;
@@ -47,13 +47,6 @@ public class WrongNoteDto {
 		this.noteId = noteId;
 	}
 
-	public Long getQuizId() {
-		return quizId;
-	}
-
-	public void setQuizId(Long quizId) {
-		this.quizId = quizId;
-	}
 
 	public Long getUserId() {
 		return userId;
@@ -61,6 +54,14 @@ public class WrongNoteDto {
 
 	public void setUserId(Long userId) {
 		this.userId = userId;
+	}
+	
+	public Long getWordId() {
+		return wordId;
+	}
+	
+	public void setWordId(Long wordId) {
+		this.wordId = wordId;
 	}
 
 	public String getJapaneseWord() {
