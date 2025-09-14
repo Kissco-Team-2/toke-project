@@ -9,8 +9,34 @@
 
 <style>
 body {
-
 	font-family: "Noto Sans KR", sans-serif;
+}
+
+.word-row {
+	display: flex;
+	align-items: center; /* 세로 가운데 정렬 */
+	padding: 0.8rem 0;
+	border-bottom: 1px solid #eee;
+	gap: 1rem; /* 필요시 조정 */
+}
+
+/* 아이콘 자리 고정폭 */
+.word-icon {
+	width: 28px; /* 아이콘 자리를 고정 (필요시 24/32 등으로 조정) */
+	min-width: 28px; /* 폭이 줄어들지 않도록 보장 */
+	height: 24px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.1rem; /* 이모지 크기 */
+	line-height: 1;
+	color: #444;
+}
+
+/* 액션 그룹(아이콘 + 체크박스) 정렬 */
+.word-actions {
+	/* 오른쪽 정렬은 부모에서 ms-auto로 처리 (이미 사용) */
+	gap: 8px;
 }
 
 .tab-btn {
@@ -159,20 +185,23 @@ body {
 				<div th:if="${mode == 'ko'}" class="hangeul-index mb-3">
 					<a th:each="g : ${'가,나,다,라,마,바,사,아,자,차,카,타,파,하'.split(',')}"
 						th:href="@{/words(mode='ko', group=${g}, q=${q}, category=${category})}"
-						th:text="${g}" class="index-link"></a>
+						th:text="${g}" class="index-link"
+						th:classappend="${group==g}?'fw-bold text-dark selected':''"></a>
 				</div>
 
 				<!-- 일본어 인덱스: 히라가나순 모드일 때만 -->
 				<div th:if="${mode == 'ja'}" class="kana-index mb-3">
 					<a th:each="g : ${'あ,か,さ,た,な,は,ま,や,ら,わ'.split(',')}"
 						th:href="@{/words(mode='ja', group=${g}, q=${q}, category=${category})}"
-						th:text="${g}" class="index-link"></a>
+						th:text="${g}" class="index-link"
+						th:classappend="${group==g}?'fw-bold text-dark selected':''"></a>
 				</div>
 
 				<div th:if="${mode == 'cat'}" class="category-index mb-3">
 					<a th:each="c : ${'고객 대응,메일,보고,인사,전화,제안,회의'.split(',')}"
 						th:href="@{/words(mode='cat', category=${c}, q=${q})}"
-						th:text="${c}" class="index-link"></a>
+						th:text="${c}" class="index-link"
+						th:classappend="${category==c}?'fw-bold text-dark selected':''"></a>
 				</div>
 
 				<div class="word-box" id="wordBox">
@@ -184,10 +213,20 @@ body {
 							<div class="word-ka" th:text="${w.readingKana}">ごれんらくありがとうございます。</div>
 							<div class="word-ko" th:text="${w.koreanMeaning}">연락 감사합니다.</div>
 							<div class="word-ex" th:text="${w.exampleSentenceJp}">送っていただいた資料を確認しました。</div>
-							<div class="form-check ms-auto">
-								<input class="form-check-input circle-checkbox" type="checkbox"
-									name="selectedWords" th:value="${w.id}">
+							<!-- 오른쪽 액션 영역: 아이콘 + 체크박스 -->
+							<div class="d-flex align-items-center ms-auto word-actions">
+								<!-- 고정폭 아이콘 영역: 항상 렌더, 조건에 따라 텍스트(이모지)를 채움 -->
+								<span class="word-icon"
+									th:text="${myCustomJp != null and normJpById != null and myCustomJp.contains(normJpById[w.id])} ? '📒' : ''"
+									title="이미 내 단어장에 있음"></span>
+
+								<!-- 기존 체크박스 -->
+								<div class="form-check ms-2">
+									<input class="form-check-input circle-checkbox" type="checkbox"
+										name="selectedWords" th:value="${w.id}">
+								</div>
 							</div>
+
 						</div>
 					</div>
 				</div>
@@ -235,7 +274,7 @@ document.getElementById('add_to_mylist_modal')
   });
 </script>
 
-<script>
+	<script>
   // 모달이 열릴 때 선택된 체크박스들을 모아서 selectedWordIds에 채우는 기존 코드
   document.getElementById('add_to_mylist_modal')
     .addEventListener('show.bs.modal', function () {
@@ -260,7 +299,166 @@ document.getElementById('add_to_mylist_modal')
   }
 </script>
 
-	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+	<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const modalEl = document.getElementById('add_to_mylist_modal');
+  const form = document.getElementById('addToMyListForm');
+  const hidden = document.getElementById('selectedWordIds');
+  const errorDiv = document.getElementById('addToMyListError');
+
+  // 모달이 열릴 때 체크된 id들을 채워넣음 (기존 코드 유지)
+  if (modalEl) {
+    modalEl.addEventListener('show.bs.modal', function () {
+      const checked = document.querySelectorAll('input[name="selectedWords"]:checked');
+      const ids = Array.from(checked).map(cb => cb.value);
+      if (hidden) hidden.value = ids.join(',');
+    });
+  }
+
+  if (!form) return;
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault(); // 기본 제출 막음 — 먼저 검사
+
+    // 초기화
+    if (errorDiv) {
+      errorDiv.style.display = 'none';
+      errorDiv.textContent = '';
+    }
+
+    const ids = hidden ? hidden.value.trim() : '';
+    if (!ids) {
+      if (errorDiv) {
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = '선택된 단어가 없습니다. 추가할 단어를 선택해 주세요.';
+      } else {
+        alert('선택된 단어가 없습니다. 추가할 단어를 선택해 주세요.');
+      }
+      return; // 제출 중지
+    }
+
+    const listIdEl = document.getElementById('addToListSelect');
+    const listId = listIdEl ? listIdEl.value : null;
+    if (!listId) {
+      if (errorDiv) {
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = '단어장을 선택해 주세요.';
+      }
+      return;
+    }
+
+    // 서버에 검사 요청
+    const params = new URLSearchParams();
+    params.append('selectedWordIds', ids);
+    params.append('listId', listId);
+
+    fetch('/lists/addWords/check', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
+      body: params.toString(),
+      credentials: 'same-origin'
+    })
+    .then(res => res.json())
+    .then(json => {
+      if (!json) {
+        throw new Error('Invalid server response');
+      }
+      if (json.ok === true) {
+        // 검사 통과: 이제 폼을 실제로 제출해서 서버에서 추가 처리 (기존 POST /lists/addWords)
+        // 사용자가 리다이렉트 처리를 하고 싶다면 그냥 submit()
+        form.removeEventListener('submit', arguments.callee); // remove handler to avoid loop
+        form.submit();
+      } else {
+        // 중복 있음 -> 보여주기
+        const dups = json.duplicates || [];
+        if (dups.length > 0) {
+          // 예시 메시지: "xxx (JP) 는 이미 해당 단어장에 존재합니다." — 여러개면 줄바꿈으로 표시
+          const msgs = dups.map(d => (d.jp ? `"${d.jp}"` : `ID:${d.id}`) + ' 는 이미 해당 단어장에 존재합니다.');
+          if (errorDiv) {
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = msgs.join('<br>');
+          } else {
+            alert(msgs.join('\\n'));
+          }
+        } else {
+          // 기타 에러 메시지
+          if (errorDiv) {
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = json.message || '중복 확인 중 오류가 발생했습니다.';
+          } else {
+            alert(json.message || '중복 확인 중 오류가 발생했습니다.');
+          }
+        }
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      if (errorDiv) {
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = '서버와 통신 중 오류가 발생했습니다.';
+      } else {
+        alert('서버와 통신 중 오류가 발생했습니다.');
+      }
+    });
+  });
+});
+</script>
+
+	<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const modalEl = document.getElementById('add_to_mylist_modal');
+  const form = document.getElementById('addToMyListForm');
+  const hidden = document.getElementById('selectedWordIds');
+  const errorDiv = document.getElementById('addToMyListError');
+
+  function clearError() {
+    if (!errorDiv) return;
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+  }
+
+  // 모달이 열릴 때: 선택된 체크박스 채우기 + 에러 초기화
+  if (modalEl) {
+    modalEl.addEventListener('show.bs.modal', function () {
+      // 에러 제거
+      clearError();
+
+      // 체크된 단어 id 채우기
+      try {
+        const checked = document.querySelectorAll('input[name="selectedWords"]:checked');
+        const ids = Array.from(checked).map(cb => cb.value);
+        if (hidden) hidden.value = ids.join(',');
+      } catch (e) { /* ignore */ }
+    });
+
+    // 모달이 완전히 닫힐 때: 에러 제거 및 폼 초기화(optional)
+    modalEl.addEventListener('hidden.bs.modal', function () {
+      clearError();
+      // 폼 리셋(필요 없으면 주석처리)
+      if (form) {
+        // 단, form.reset()은 select 등의 값을 초기값으로 되돌립니다.
+        // 필요하지 않다면 아래 줄을 주석 처리하세요.
+        form.reset();
+      }
+      if (hidden) hidden.value = '';
+    });
+  }
+
+  // 기존 submit 가로채기 코드가 있다면, 성공적으로 제출된 이후에도 에러를 지우도록 해두면 안전합니다
+  if (form) {
+    form.addEventListener('submit', function () {
+      // 제출 시(검사 통과 후 진짜 submit) 에러 제거
+      clearError();
+    });
+  }
+});
+</script>
+
+
+	<script
+		src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>

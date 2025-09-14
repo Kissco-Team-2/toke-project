@@ -2,6 +2,9 @@ package com.toke.toke_project.web;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
@@ -45,6 +48,14 @@ public class WordController {
 		if (principal != null) {
 			String username = principal.getName(); // 이메일 or username
 			Users me = usersRepo.findByEmail(username).orElseThrow(() -> new RuntimeException("User not found"));
+
+			Set<String> myCustomJp = wordListService.findCustomJapaneseWordsForUser(me.getId());
+			model.addAttribute("myCustomJp", myCustomJp);
+
+			Map<Long, String> normJpById = words.getContent().stream().collect(
+					Collectors.toMap(Word::getId, w -> wordListService.normalizeJpForCompare(w.getJapaneseWord())));
+			model.addAttribute("normJpById", normJpById);
+
 			List<WordList> myLists = wordListService.findMine(me.getId(), null, null);
 			model.addAttribute("myLists", myLists);
 		}

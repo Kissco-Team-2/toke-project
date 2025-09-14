@@ -48,32 +48,36 @@
 }
 </style>
 
-<div class="modal fade" id="add_to_mylist_modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content p-4" style="border-radius: 16px; width: 400px;">
-      <div class="modal-header border-0">
-        <h5 class="modal-title fw-bold">내 단어장에 추가</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="addToMyListForm" method="post" th:action="@{/lists/addWords}">
-          <!-- 체크된 단어 ID들을 숨겨 넣을 input -->
-          <input type="hidden" name="selectedWordIds" id="selectedWordIds" value="">
+	<div class="modal fade" id="add_to_mylist_modal" tabindex="-1"
+		aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content p-4"
+				style="border-radius: 16px; width: 400px;">
+				<div class="modal-header border-0">
+					<h5 class="modal-title fw-bold">내 단어장에 추가</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<form id="addToMyListForm" method="post"
+						th:action="@{/lists/addWords}">
+						<!-- 체크된 단어 ID들을 숨겨 넣을 input -->
+						<input type="hidden" name="selectedWordIds" id="selectedWordIds"
+							value=""> <label class="fw-bold mb-2">단어장 선택</label> 
+							<select name="listId" id="addToListSelect" class="form-select mb-3">
+							<option th:each="myList : ${myLists}" 
+									th:value="${myList.id}"
+									th:text="${myList.listName}">
+							</option>
+						</select>
+						
+						<div id="addToMyListError" class="text-danger mb-2" style="display: none;"></div>
 
-          <label class="fw-bold mb-2">단어장 선택</label>
-          <select name="listId" class="form-select mb-3">
-            <option th:each="myList : ${myLists}" 
-                    th:value="${myList.id}" 
-                    th:text="${myList.listName}">
-            </option>
-          </select>
-
-          <div class="d-grid">
-            <button type="submit" class="btn btn-soft-green">추가하기</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
+						<div class="d-grid">
+							<button type="submit" class="btn btn-soft-green">추가하기</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
 </div>
