@@ -45,15 +45,19 @@
   </form>
 
   <!-- 헤더 -->
-  <div class="rowgrid table-header px-4 py-2 mb-2">
-    <div>글번호</div><div>문의 유형</div><div>제목</div>
-    <div>작성자</div><div>처리 상태</div><div>작성 날짜</div>
+  <div class="rowgrid table-header px-4 py-2 mb-2 text-center">
+    <div>글번호</div>
+    <div>문의 유형</div>
+    <div>제목</div>
+    <div>작성자</div>
+    <div>처리 상태</div>
+    <div>작성 날짜</div>
   </div>
 
   <div th:if="${#lists.isEmpty(page?.content)}" class="text-secondary mt-3">글이 없습니다.</div>
 
   <!-- 리스트 -->
-  <div th:each="row : ${page.content}" class="card card-row mb-2">
+  <div th:each="row : ${page.content}" class="card card-row mb-2 text-center">
     <div class="card-body rowgrid px-4 py-3">
       <div th:text="${row.id}">1</div>
       <div th:text="${row.categoryLabel}">단어 / 표현 추가</div>
@@ -99,3 +103,4 @@
 <footer class="mt-auto"><div th:insert="fragments/footer :: site-footer"></div></footer>
 </body>
 </html>
+

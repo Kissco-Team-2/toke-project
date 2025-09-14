@@ -35,12 +35,6 @@ public class Qna {
     @Column(name="is_secret", length=1)
     private String isSecret = "N";   // 'Y'/'N'
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "answered_by")
-    private Users answeredBy;        // 답변 관리자
-
-    @Column(name="answered_at")
-    private LocalDateTime answeredAt;
 
     @Column(name="created_at", insertable=false, updatable=false)
     private LocalDateTime createdAt;

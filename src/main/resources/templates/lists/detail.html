@@ -90,6 +90,10 @@ ul {
 	display: flex;
 	gap: 0.5rem;
 }
+
+.owner {
+	color: #9a9a9a;
+}
 </style>
 </head>
 
@@ -101,6 +105,7 @@ ul {
 				이름</h2>
 			<div
 				class="meta d-flex flex-column align-items-center justify-content-center">
+				<p class="owner" th:text="${ownerNickname}">단어장 소유자</p>
 				<p th:text="${list.description}">설명</p>
 				<div class="tags d-flex justify-content-center mt-2">
 					<span th:each="t : ${listTags != null ? listTags : {}}"
@@ -111,18 +116,23 @@ ul {
 
 				<div class="small">
 					<!-- 본인 소유일 경우만 노출 -->
-					<div th:if="${me != null and me == list.owner.id}"
+					<div th:if="${canManage}"
 						class="d-flex gap-2">
-						
+
+						<form th:action="@{|/lists/${list.id}/share|}" method="post">
+							<input type="hidden" th:if="${_csrf != null}"
+								th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+							<button type="submit" class="btn btn-outline">공유</button>
+						</form>
+
+
 						<!-- 수정 버튼 (모달 띄우기 or edit 페이지로 이동) -->
-						<a th:href="@{|/lists/${list.id}/edit|}"
-							class="btn btn-outline">단어장 수정</a>
+						<a th:href="@{|/lists/${list.id}/edit|}" class="btn btn-outline">수정</a>
 
 						<!-- 삭제 버튼 (폼으로 POST) -->
 						<form th:action="@{|/lists/${list.id}/delete|}" method="post"
 							onsubmit="return confirm('정말 삭제하시겠습니까?');" class="d-inline">
-							<button type="submit" class="btn btn-outline">단어장
-								삭제</button>
+							<button type="submit" class="btn btn-outline">삭제</button>
 						</form>
 
 
@@ -163,7 +173,7 @@ ul {
 										th:text="${w.word?.exampleSentenceJp ?: w.customExampleSentenceJp}">送っていただいた資料を確認しました。</span>
 								</p>
 
-								<div th:if="${me != null and w.wordList.owner.id == me}"
+								<div th:if="${me != null and list.owner.id == me}"
 									class="accordion-actions mt-2 d-flex justify-content-end">
 									<a href="javascript:void(0)" class="btn btn-sm"
 										data-bs-toggle="modal" data-bs-target="#edit_mywords_modal"
@@ -238,6 +248,31 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 });
 </script>
+
+<div id="flash-msg" th:if="${msg}" th:attr="data-msg=${msg}" style="display:none;"></div>
+
+<script>
+  (function(){
+    const el = document.getElementById('flash-msg');
+    if (!el) return;
+    const msg = el.dataset.msg; 
+    if (msg && msg.length) {
+      alert(msg);
+    }
+  })();
+</script>
+
+<!-- 모달 자동오픈: 서버에서 openNewModal=true 를 넣어줄 때 모달을 연다 -->
+<script th:if="${openNewModal}">
+  (function(){
+    var modalEl = document.getElementById('new_mywords_modal');
+    if (modalEl) {
+      var m = new bootstrap.Modal(modalEl);
+      m.show();
+    }
+  })();
+</script>
+
 
 </body>
 </html>

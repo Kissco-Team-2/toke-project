@@ -181,8 +181,8 @@ public class QuizService {
         Collections.shuffle(candidates);
         List<Word> picked = candidates.subList(0, n);
 
-        // Build quizzes from picked words, reuse buildOptions etc.
-        QuestionMode mode = QuestionMode.JP_TO_KR; // or allow request to specify; default JP_TO_KR
+     
+        QuestionMode mode = QuestionMode.JP_TO_KR; 
         List<QuizQuestion> questions = new ArrayList<>();
         for (Word w : picked) {
             final String prompt;

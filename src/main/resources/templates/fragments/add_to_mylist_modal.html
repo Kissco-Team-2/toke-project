@@ -58,7 +58,7 @@
       <div class="modal-body">
         <form id="addToMyListForm" method="post" th:action="@{/lists/addWords}">
           <!-- 체크된 단어 ID들을 숨겨 넣을 input -->
-          <input type="hidden" name="selectedWordIds" id="selectedWordIds">
+          <input type="hidden" name="selectedWordIds" id="selectedWordIds" value="">
 
           <label class="fw-bold mb-2">단어장 선택</label>
           <select name="listId" class="form-select mb-3">

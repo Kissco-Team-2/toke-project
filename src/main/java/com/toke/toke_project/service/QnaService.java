@@ -133,8 +133,7 @@ public class QnaService {
         qnaCommentRepo.save(c);
 
         q.setStatus("ANSWERED");
-        q.setAnsweredBy(admin);
-        q.setAnsweredAt(LocalDateTime.now());
+ 
     }
 
     /* ========= 댓글 목록(오래된 → 최신) ========= */
@@ -176,7 +175,7 @@ public class QnaService {
 
     private QnaDetailView toDetailView(Qna q) {
         String authorDisplay = displayName(q.getAuthor());
-        String answeredByDisplay = displayName(q.getAnsweredBy());
+
 
         String categoryLabel = switch (q.getCategory()) {
             case "WORD" -> "단어 / 표현 수정";
@@ -194,9 +193,8 @@ public class QnaService {
                 q.getStatus(),
                 q.getIsSecret(),
                 q.getCreatedAt(),
-                authorDisplay,
-                answeredByDisplay,
-                q.getAnsweredAt()
+                authorDisplay
+             
         );
     }
 
