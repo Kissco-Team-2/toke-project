@@ -1,6 +1,10 @@
 package com.toke.toke_project.repo;
 //단어장 목록/소유자별/검색(제목, 닉네임, 태그) 조회.
 import com.toke.toke_project.domain.WordList;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -89,5 +93,9 @@ public interface WordListRepository extends JpaRepository<WordList, Long> {
             "LEFT JOIN FETCH w.tags t " +         // 필요하면 tags도 미리 로드
             "WHERE w.id = :id")
      Optional<WordList> findByIdWithOwnerAndTags(@Param("id") Long id);
+
+
+    @EntityGraph(attributePaths = "tags") // 태그까지 로딩
+    Page<WordList> findByOwnerIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 }
 
