@@ -159,20 +159,23 @@ body {
 				<div th:if="${mode == 'ko'}" class="hangeul-index mb-3">
 					<a th:each="g : ${'가,나,다,라,마,바,사,아,자,차,카,타,파,하'.split(',')}"
 						th:href="@{/words(mode='ko', group=${g}, q=${q}, category=${category})}"
-						th:text="${g}" class="index-link"></a>
+						th:text="${g}" class="index-link"
+						th:classappend="${group==g}?'fw-bold text-dark selected':''"></a>
 				</div>
 
 				<!-- 일본어 인덱스: 히라가나순 모드일 때만 -->
 				<div th:if="${mode == 'ja'}" class="kana-index mb-3">
 					<a th:each="g : ${'あ,か,さ,た,な,は,ま,や,ら,わ'.split(',')}"
 						th:href="@{/words(mode='ja', group=${g}, q=${q}, category=${category})}"
-						th:text="${g}" class="index-link"></a>
+						th:text="${g}" class="index-link"
+						th:classappend="${group==g}?'fw-bold text-dark selected':''"></a>
 				</div>
 
 				<div th:if="${mode == 'cat'}" class="category-index mb-3">
 					<a th:each="c : ${'고객 대응,메일,보고,인사,전화,제안,회의'.split(',')}"
 						th:href="@{/words(mode='cat', category=${c}, q=${q})}"
-						th:text="${c}" class="index-link"></a>
+						th:text="${c}" class="index-link"
+						th:classappend="${category==c}?'fw-bold text-dark selected':''"></a>
 				</div>
 
 				<div class="word-box" id="wordBox">
